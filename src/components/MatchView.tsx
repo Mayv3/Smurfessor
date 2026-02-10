@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { PlayerCard } from "./PlayerCard";
-import type { BatchSummary } from "./PlayerCard";
 import { IconShield, IconWarning, IconCheckCircle } from "./ui/Icons";
 import type { SmurfAssessment } from "../lib/smurf/rules";
+import type { NormalizedRunes } from "../lib/ddragon/runes";
 
 /* ── Types ────────────────────────────────────────────── */
 interface Participant {
@@ -15,6 +15,12 @@ interface Participant {
   perkKeystone?: number;
   perkPrimaryStyle?: number;
   perkSubStyle?: number;
+  perks?: {
+    perkIds?: number[];
+    perkStyle?: number;
+    perkSubStyle?: number;
+    perkStatShards?: { offense?: number; flex?: number; defense?: number };
+  };
 }
 
 interface DDragon {
@@ -25,21 +31,28 @@ interface DDragon {
   runeData?: Record<string, { id: number; key: string; name: string; icon: string }>;
 }
 
-interface PlayerSummaryWithSmurf {
+/** Shape returned by POST /api/player-cards */
+interface PlayerCardDataFromAPI {
   puuid: string;
   teamId: number;
-  riotId: string;
-  profileIconId: number;
+  riotId: { gameName: string; tagLine: string };
   summonerLevel: number;
-  soloQueue: {
-    tier: string; rank: string; leaguePoints: number; wins: number; losses: number;
+  profileIconId: number;
+  ranked: {
+    queue: "RANKED_SOLO_5x5" | "RANKED_FLEX_SR";
+    tier: string; rank: string; leaguePoints: number;
+    wins: number; losses: number; games: number; winrate: number;
   } | null;
-  flexQueue: {
-    tier: string; rank: string; leaguePoints: number; wins: number; losses: number;
-  } | null;
-  topMasteries: { championId: number; championLevel: number; championPoints: number }[];
-  championWinrate: number | null;
-  championSampleSize: number;
+  currentChampion: { id: number; name: string; icon: string };
+  champStats: {
+    recentWindow: number;
+    gamesWithChamp: number | null;
+    winrateWithChamp: number | null;
+    sampleSizeOk: boolean;
+    note?: string;
+  };
+  runes: NormalizedRunes | null;
+  spells: { spell1: { id: number; name: string; icon: string }; spell2: { id: number; name: string; icon: string } } | null;
   smurf: SmurfAssessment;
 }
 
@@ -57,7 +70,7 @@ interface Props {
 /* ── Smurf counter ───────────────────────────────────── */
 interface SmurfCount { confirmed: number; possible: number; }
 
-function countSmurfs(puuids: string[], map: Map<string, PlayerSummaryWithSmurf>): SmurfCount {
+function countSmurfs(puuids: string[], map: Map<string, PlayerCardDataFromAPI>): SmurfCount {
   let confirmed = 0, possible = 0;
   for (const id of puuids) {
     const s = map.get(id);
@@ -74,14 +87,14 @@ function TeamSection({
   color,
   participants,
   ddragon,
-  summaries,
+  cards,
   loading,
 }: {
   label: string;
   color: "blue" | "red";
   participants: Participant[];
   ddragon: DDragon;
-  summaries: Map<string, PlayerSummaryWithSmurf>;
+  cards: Map<string, PlayerCardDataFromAPI>;
   loading: boolean;
 }) {
   const accentBorder = color === "blue" ? "border-blue-500" : "border-red-500";
@@ -102,25 +115,32 @@ function TeamSection({
       {/* 5 cards in a responsive grid */}
       <div className="grid grid-cols-5 gap-3">
         {participants.map((p) => {
-          const data = summaries.get(p.puuid);
-          const summary: BatchSummary | undefined = data
-            ? {
-                summonerLevel: data.summonerLevel,
-                profileIconId: data.profileIconId,
-                soloQueue: data.soloQueue,
-                flexQueue: data.flexQueue,
-                championWinrate: data.championWinrate ?? null,
-                championSampleSize: data.championSampleSize ?? 0,
-              }
-            : undefined;
+          const card = cards.get(p.puuid);
+          const champ = ddragon.champions[String(p.championId)];
           return (
             <PlayerCard
               key={p.puuid}
-              participant={p}
+              puuid={p.puuid}
+              teamId={p.teamId}
+              riotId={card?.riotId ?? { gameName: p.riotId?.split("#")?.[0] ?? "Unknown", tagLine: p.riotId?.split("#")?.[1] ?? "???" }}
+              summonerLevel={card?.summonerLevel ?? 0}
+              profileIconId={card?.profileIconId ?? 0}
+              ranked={card?.ranked ?? null}
+              currentChampion={card?.currentChampion ?? { id: p.championId, name: champ?.name ?? "Unknown", icon: champ?.image ?? "" }}
+              champStats={card?.champStats ?? { recentWindow: 20, gamesWithChamp: null, winrateWithChamp: null, sampleSizeOk: false }}
+              runes={card?.runes ?? null}
+              spells={card?.spells ?? null}
+              smurf={card?.smurf ?? { severity: "none" as const, label: "No smurf", probability: 0, reasons: [] }}
+              participant={{
+                championId: p.championId,
+                spell1Id: p.spell1Id,
+                spell2Id: p.spell2Id,
+                perkKeystone: p.perkKeystone,
+                perkPrimaryStyle: p.perkPrimaryStyle,
+                perkSubStyle: p.perkSubStyle,
+              }}
               ddragon={ddragon}
-              smurfData={data?.smurf}
-              summary={summary}
-              batchLoading={loading}
+              loading={loading && !card}
             />
           );
         })}
@@ -134,7 +154,7 @@ function TeamSection({
    ══════════════════════════════════════════════════════════ */
 export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
   const elapsed = Math.max(0, Math.floor((Date.now() - game.gameStartTime) / 1000 / 60));
-  const [summaries, setSummaries] = useState<Map<string, PlayerSummaryWithSmurf>>(new Map());
+  const [cards, setCards] = useState<Map<string, PlayerCardDataFromAPI>>(new Map());
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -146,21 +166,24 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
       setLoading(true);
       setWarning(null);
       try {
-        const res = await fetch("/api/player-summaries", {
+        const res = await fetch("/api/player-cards", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             platform,
             players: allParticipants.map((p) => ({
-              puuid: p.puuid, teamId: p.teamId, championId: p.championId,
+              puuid: p.puuid,
+              teamId: p.teamId,
+              championId: p.championId,
+              perks: p.perks ?? undefined,
             })),
           }),
         });
         const json = await res.json();
         if (!cancelled && json.ok) {
-          const map = new Map<string, PlayerSummaryWithSmurf>();
+          const map = new Map<string, PlayerCardDataFromAPI>();
           for (const p of json.data.players) map.set(p.puuid, p);
-          setSummaries(map);
+          setCards(map);
           if (json.data.warning) setWarning(json.data.warning);
         }
       } catch (e) { console.error("[MatchView] batch fetch failed:", e); }
@@ -171,8 +194,8 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.gameId, platform]);
 
-  const blueCount = countSmurfs(game.teams.blue.map((p) => p.puuid), summaries);
-  const redCount = countSmurfs(game.teams.red.map((p) => p.puuid), summaries);
+  const blueCount = countSmurfs(game.teams.blue.map((p) => p.puuid), cards);
+  const redCount = countSmurfs(game.teams.red.map((p) => p.puuid), cards);
   const totalConfirmed = blueCount.confirmed + redCount.confirmed;
   const totalPossible = blueCount.possible + redCount.possible;
 
@@ -209,7 +232,7 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
         color="blue"
         participants={game.teams.blue}
         ddragon={ddragon}
-        summaries={summaries}
+        cards={cards}
         loading={loading}
       />
 
@@ -226,7 +249,7 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
         color="red"
         participants={game.teams.red}
         ddragon={ddragon}
-        summaries={summaries}
+        cards={cards}
         loading={loading}
       />
 

@@ -7,8 +7,8 @@ export interface RiotAccount {
 }
 
 export interface Summoner {
-  id: string; // encrypted summoner id
-  accountId: string;
+  id?: string; // encrypted summoner id (deprecated — no longer returned by Riot)
+  accountId?: string; // deprecated
   puuid: string;
   profileIconId: number;
   summonerLevel: number;
@@ -34,10 +34,17 @@ export interface ChampionMastery {
   championPoints: number;
 }
 
+export interface SpectatorStatPerks {
+  offense: number;
+  flex: number;
+  defense: number;
+}
+
 export interface SpectatorPerks {
   perkIds: number[];
   perkStyle: number;
   perkSubStyle: number;
+  perkStatShards?: SpectatorStatPerks;
 }
 
 export interface SpectatorParticipant {
@@ -75,6 +82,8 @@ export interface NormalizedParticipant {
   perkKeystone?: number;
   perkPrimaryStyle?: number;
   perkSubStyle?: number;
+  /** Full perks data for rune normalization */
+  perks?: SpectatorPerks;
 }
 
 export interface NormalizedLiveGame {
@@ -103,4 +112,54 @@ export interface PlayerSummary {
   soloQueue: LeagueEntry | null;
   flexQueue: LeagueEntry | null;
   topMasteries: ChampionMastery[];
+}
+
+/* ── PlayerCardData — card-ready model for POST /api/player-cards ── */
+
+import type { NormalizedRunes } from "../ddragon/runes";
+import type { SmurfAssessment } from "../smurf/rules";
+
+export interface PlayerCardRanked {
+  queue: "RANKED_SOLO_5x5" | "RANKED_FLEX_SR";
+  tier: string;
+  rank: string;
+  leaguePoints: number;
+  wins: number;
+  losses: number;
+  games: number;
+  winrate: number;
+}
+
+export interface PlayerCardChampion {
+  id: number;
+  name: string;
+  icon: string;
+}
+
+export interface PlayerCardChampStats {
+  recentWindow: number;
+  gamesWithChamp: number | null;
+  winrateWithChamp: number | null;
+  sampleSizeOk: boolean;
+  note?: string;
+}
+
+export interface PlayerCardSpell {
+  id: number;
+  name: string;
+  icon: string;
+}
+
+export interface PlayerCardData {
+  puuid: string;
+  teamId: number;
+  riotId: { gameName: string; tagLine: string };
+  summonerLevel: number;
+  profileIconId: number;
+  ranked: PlayerCardRanked | null;
+  currentChampion: PlayerCardChampion;
+  champStats: PlayerCardChampStats;
+  runes: NormalizedRunes | null;
+  spells: { spell1: PlayerCardSpell; spell2: PlayerCardSpell } | null;
+  smurf: SmurfAssessment;
 }

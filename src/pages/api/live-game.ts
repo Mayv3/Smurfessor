@@ -1,33 +1,99 @@
 import type { APIRoute } from "astro";
 import { z } from "zod";
-import { getActiveGame } from "../../lib/riot/endpoints";
+import { getAccountByRiotId, getActiveGame } from "../../lib/riot/endpoints";
 import { normalizeLiveGame } from "../../lib/riot/normalize";
 import { RiotApiError, RiotErrorCode } from "../../lib/riot/errors";
 import { FEATURES } from "../../config/features";
-import { isTestPuuid, isSmurfTestPuuid, MOCK_LIVE_GAME, SMURF_MOCK_LIVE_GAME } from "../../config/mock-data";
+import { ACCOUNTS } from "../../config/accounts";
+import {
+  isTestPuuid,
+  isSmurfTestPuuid,
+  MOCK_LIVE_GAME,
+  SMURF_MOCK_LIVE_GAME,
+} from "../../config/mock-data";
 import { ok, err } from "../../lib/api-response";
 
-const schema = z.object({
-  puuid: z.string().min(1),
-  platform: z.string().default("LA2"),
-});
+/**
+ * GET /api/live-game
+ *
+ * Accepts either:
+ *   ?key=<account-key>          — resolves the tracked account internally
+ *   ?puuid=<puuid>&platform=LA2 — direct lookup (for search flow)
+ */
+const schema = z.union([
+  z.object({
+    key: z.string().min(1),
+    puuid: z.undefined().optional(),
+    platform: z.string().default("LA2"),
+  }),
+  z.object({
+    key: z.undefined().optional(),
+    puuid: z.string().min(1),
+    platform: z.string().default("LA2"),
+  }),
+]);
 
 export const GET: APIRoute = async ({ url }) => {
-  const parsed = schema.safeParse({
-    puuid: url.searchParams.get("puuid"),
+  const raw = {
+    key: url.searchParams.get("key") ?? undefined,
+    puuid: url.searchParams.get("puuid") ?? undefined,
     platform: url.searchParams.get("platform") ?? "LA2",
-  });
+  };
 
+  const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    return err("INVALID_PARAMS", "Missing or invalid parameters", 400);
+    return err("INVALID_PARAMS", "Provide either ?key= or ?puuid= parameter", 400);
   }
 
-  /* Mock shortcut for test puuids */
-  if (isSmurfTestPuuid(parsed.data.puuid)) {
-    return ok({ ...SMURF_MOCK_LIVE_GAME, gameStartTime: Date.now() - 10 * 60 * 1000 });
+  const params = parsed.data;
+  let puuid: string;
+  let platform = params.platform;
+
+  /* ── Resolve puuid from key or use directly ──────── */
+  if ("key" in params && params.key) {
+    /* Mock shortcuts */
+    if (params.key === "test") {
+      return ok({ ...MOCK_LIVE_GAME, gameStartTime: Date.now() - 14 * 60 * 1000 });
+    }
+    if (params.key === "smurf-test") {
+      return ok({ ...SMURF_MOCK_LIVE_GAME, gameStartTime: Date.now() - 10 * 60 * 1000 });
+    }
+
+    const account = ACCOUNTS.find((a) => a.key === params.key);
+    if (!account) {
+      return err("NOT_FOUND", `Account "${params.key}" not found`, 404);
+    }
+
+    platform = account.platform;
+
+    try {
+      const riot = await getAccountByRiotId(
+        account.riotId.gameName,
+        account.riotId.tagLine,
+        platform,
+      );
+      puuid = riot.puuid;
+    } catch (e) {
+      if (e instanceof RiotApiError) {
+        return err(e.code, e.detail, e.status);
+      }
+      return err("UNKNOWN", "Failed to resolve account", 500, String(e));
+    }
+  } else {
+    puuid = params.puuid!;
+
+    /* Mock shortcuts for direct puuid */
+    if (isSmurfTestPuuid(puuid)) {
+      return ok({ ...SMURF_MOCK_LIVE_GAME, gameStartTime: Date.now() - 10 * 60 * 1000 });
+    }
+    if (isTestPuuid(puuid)) {
+      return ok({ ...MOCK_LIVE_GAME, gameStartTime: Date.now() - 14 * 60 * 1000 });
+    }
   }
-  if (isTestPuuid(parsed.data.puuid)) {
-    return ok({ ...MOCK_LIVE_GAME, gameStartTime: Date.now() - 14 * 60 * 1000 });
+
+  /* MOCK_RIOT mode — always return mock game */
+  if (FEATURES.mockRiot) {
+    return ok({ ...SMURF_MOCK_LIVE_GAME, gameStartTime: Date.now() - 10 * 60 * 1000 });
   }
 
   if (!FEATURES.spectator) {
@@ -35,7 +101,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   try {
-    const game = await getActiveGame(parsed.data.puuid, parsed.data.platform);
+    const game = await getActiveGame(puuid, platform);
     const normalized = normalizeLiveGame(game);
     return ok(normalized);
   } catch (e) {

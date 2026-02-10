@@ -33,3 +33,6 @@ export interface DDragonBootstrap {
   runes: Record<string, RuneTree>; // keyed by rune tree id (numeric string)
   runeData: Record<string, RuneData>; // keyed by individual rune id (numeric string)
 }
+
+/* Re-export rune normalization types for convenience */
+export type { NormalizedRunes, NormalizedRuneSlot, StatShard } from "./runes";

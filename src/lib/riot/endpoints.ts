@@ -47,6 +47,25 @@ export async function getAccountByRiotId(
   const url = `${base}/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
   const data = await riotFetch<RiotAccount>(url);
   setCached("riotId", cacheKey, data, TTL.RIOT_ID);
+  /* Also cache by puuid for reverse lookup */
+  setCached("accountByPuuid", data.puuid, data, TTL.ACCOUNT_BY_PUUID);
+  return data;
+}
+
+export async function getAccountByPuuid(
+  puuid: string,
+  platform?: string,
+): Promise<RiotAccount> {
+  const hit = getCached<RiotAccount>("accountByPuuid", puuid, TTL.ACCOUNT_BY_PUUID);
+  if (hit) return hit;
+
+  const base = regionalUrl(platform);
+  const url = `${base}/riot/account/v1/accounts/by-puuid/${puuid}`;
+  const data = await riotFetch<RiotAccount>(url);
+  setCached("accountByPuuid", puuid, data, TTL.ACCOUNT_BY_PUUID);
+  /* Also cache by riotId */
+  const riotIdKey = `${data.gameName}#${data.tagLine}`.toLowerCase();
+  setCached("riotId", riotIdKey, data, TTL.RIOT_ID);
   return data;
 }
 
@@ -63,37 +82,29 @@ export async function getSummonerByPuuid(puuid: string, platform?: string): Prom
 
 /* ─── League-V4 (platform) ──────────────────────────── */
 export async function getLeagueEntries(
-  encryptedSummonerId: string,
+  puuid: string,
   platform?: string,
 ): Promise<LeagueEntry[]> {
-  const hit = getCached<LeagueEntry[]>(
-    "league",
-    encryptedSummonerId,
-    TTL.LEAGUE,
-  );
+  const hit = getCached<LeagueEntry[]>("league", puuid, TTL.LEAGUE);
   if (hit) return hit;
 
-  const url = `${platformUrl(platform)}/lol/league/v4/entries/by-summoner/${encryptedSummonerId}`;
+  const url = `${platformUrl(platform)}/lol/league/v4/entries/by-puuid/${puuid}`;
   const data = await riotFetch<LeagueEntry[]>(url);
-  setCached("league", encryptedSummonerId, data, TTL.LEAGUE);
+  setCached("league", puuid, data, TTL.LEAGUE);
   return data;
 }
 
 /* ─── Champion-Mastery-V4 (platform) ────────────────── */
 export async function getChampionMasteries(
-  encryptedSummonerId: string,
+  puuid: string,
   platform?: string,
 ): Promise<ChampionMastery[]> {
-  const hit = getCached<ChampionMastery[]>(
-    "mastery",
-    encryptedSummonerId,
-    TTL.MASTERY,
-  );
+  const hit = getCached<ChampionMastery[]>("mastery", puuid, TTL.MASTERY);
   if (hit) return hit;
 
-  const url = `${platformUrl(platform)}/lol/champion-mastery/v4/champion-masteries/by-summoner/${encryptedSummonerId}`;
+  const url = `${platformUrl(platform)}/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}`;
   const data = await riotFetch<ChampionMastery[]>(url);
-  setCached("mastery", encryptedSummonerId, data, TTL.MASTERY);
+  setCached("mastery", puuid, data, TTL.MASTERY);
   return data;
 }
 
@@ -126,12 +137,12 @@ export async function getMatchIds(
 }
 
 export async function getMatch(matchId: string, platform?: string): Promise<unknown> {
-  const hit = getCached<unknown>("match", matchId, TTL.MATCHES);
+  const hit = getCached<unknown>("match", matchId, TTL.MATCH_DETAIL);
   if (hit) return hit;
 
   const base = regionalUrl(platform);
   const url = `${base}/lol/match/v5/matches/${matchId}`;
   const data = await riotFetch<unknown>(url);
-  setCached("match", matchId, data, TTL.MATCHES);
+  setCached("match", matchId, data, TTL.MATCH_DETAIL);
   return data;
 }

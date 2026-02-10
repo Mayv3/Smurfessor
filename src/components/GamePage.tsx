@@ -25,38 +25,20 @@ const queryClient = new QueryClient({
 function GamePageInner({ accountKey }: { accountKey: string }) {
   const [retryCount, setRetryCount] = useState(0);
 
-  /* 1) Resolve account → puuid */
-  const resolveQ = useQuery({
-    queryKey: ["resolve", accountKey],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/resolve?key=${encodeURIComponent(accountKey)}`,
-      );
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error?.message ?? "Resolve failed");
-      return json.data as {
-        account: { riotId: { gameName: string; tagLine: string }; platform: string };
-        puuid: string;
-      };
-    },
-  });
-
-  /* 2) Fetch live game */
+  /* 1) Fetch live game directly by account key (live-game now supports ?key=) */
   const liveQ = useQuery({
-    queryKey: ["live-game", resolveQ.data?.puuid, retryCount],
+    queryKey: ["live-game", accountKey, retryCount],
     queryFn: async () => {
-      const puuid = resolveQ.data!.puuid;
       const res = await fetch(
-        `/api/live-game?puuid=${encodeURIComponent(puuid)}&platform=LA2`,
+        `/api/live-game?key=${encodeURIComponent(accountKey)}`,
       );
       const json = await res.json();
       if (!json.ok) throw new Error(json.error?.message ?? "Live-game failed");
       return json.data;
     },
-    enabled: !!resolveQ.data?.puuid,
   });
 
-  /* 3) DDragon bootstrap */
+  /* 2) DDragon bootstrap */
   const ddQ = useQuery({
     queryKey: ["ddragon-bootstrap"],
     queryFn: async () => {
@@ -69,14 +51,11 @@ function GamePageInner({ accountKey }: { accountKey: string }) {
   });
 
   /* ── Loading ────────────────────────────────────────── */
-  if (resolveQ.isLoading || liveQ.isLoading || ddQ.isLoading) {
+  if (liveQ.isLoading || ddQ.isLoading) {
     return <SkeletonLoader />;
   }
 
   /* ── Errors ─────────────────────────────────────────── */
-  if (resolveQ.isError) {
-    return <ErrorBanner message={resolveQ.error.message} />;
-  }
   if (ddQ.isError) {
     return <ErrorBanner message={`DDragon: ${ddQ.error.message}`} />;
   }
@@ -109,7 +88,7 @@ function GamePageInner({ accountKey }: { accountKey: string }) {
   return (
     <div>
       <OfflineView
-        account={resolveQ.data?.account}
+        account={undefined}
         reason={liveGame?.reason ?? "NOT_IN_GAME"}
       />
       <div className="text-center mt-4">

@@ -48,10 +48,10 @@ export const GET: APIRoute = async ({ request, url }) => {
         account.riotId.gameName,
         account.riotId.tagLine,
       );
-      const summoner = await getSummonerByPuuid(riot.puuid);
+      await getSummonerByPuuid(riot.puuid);
       await Promise.all([
-        getLeagueEntries(summoner.id),
-        getChampionMasteries(summoner.id),
+        getLeagueEntries(riot.puuid),
+        getChampionMasteries(riot.puuid),
       ]);
       refreshed++;
     } catch (e) {

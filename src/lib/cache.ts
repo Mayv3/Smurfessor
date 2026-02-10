@@ -17,12 +17,15 @@ function getOrCreateCache(
 /* ── TTL constants (ms) ─────────────────────────────── */
 export const TTL = {
   RIOT_ID: 24 * 60 * 60 * 1000, // 24 h
+  ACCOUNT_BY_PUUID: 24 * 60 * 60 * 1000, // 24 h
   SUMMONER: 24 * 60 * 60 * 1000, // 24 h
   LEAGUE: 30 * 60 * 1000, // 30 min
   MASTERY: 30 * 60 * 1000, // 30 min
   LIVE_GAME: 10 * 1000, // 10 s
   DDRAGON: 24 * 60 * 60 * 1000, // 24 h
   MATCHES: 15 * 60 * 1000, // 15 min
+  MATCH_DETAIL: 24 * 60 * 60 * 1000, // 24 h (immutable)
+  CHAMP_STATS: 6 * 60 * 60 * 1000, // 6 h
 } as const;
 
 /* ── Public helpers ──────────────────────────────────── */

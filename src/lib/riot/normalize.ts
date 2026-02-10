@@ -2,6 +2,7 @@ import type {
   SpectatorGame,
   NormalizedLiveGame,
   NormalizedParticipant,
+  SpectatorPerks,
 } from "./types";
 
 export function normalizeLiveGame(raw: SpectatorGame): NormalizedLiveGame {
@@ -9,6 +10,15 @@ export function normalizeLiveGame(raw: SpectatorGame): NormalizedLiveGame {
   const red: NormalizedParticipant[] = [];
 
   for (const p of raw.participants) {
+    const fullPerks: SpectatorPerks | undefined = p.perks
+      ? {
+          perkIds: p.perks.perkIds ?? [],
+          perkStyle: p.perks.perkStyle,
+          perkSubStyle: p.perks.perkSubStyle,
+          perkStatShards: (p.perks as any).perkStatShards ?? undefined,
+        }
+      : undefined;
+
     const n: NormalizedParticipant = {
       puuid: p.puuid,
       riotId: p.riotId,
@@ -19,6 +29,7 @@ export function normalizeLiveGame(raw: SpectatorGame): NormalizedLiveGame {
       perkKeystone: p.perks?.perkIds?.[0],
       perkPrimaryStyle: p.perks?.perkStyle,
       perkSubStyle: p.perks?.perkSubStyle,
+      perks: fullPerks,
     };
     if (p.teamId === 100) blue.push(n);
     else red.push(n);

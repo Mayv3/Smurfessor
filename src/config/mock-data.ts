@@ -50,7 +50,7 @@ export interface MockSummary {
 }
 
 function buildTeamParticipants(
-  players: readonly { name: string; champId: number; spells: readonly [number, number]; team: number; perks?: readonly [number, number, number] }[],
+  players: readonly { name: string; champId: number; spells: readonly [number, number]; team: number; perks?: readonly [number, number, number]; fullPerks?: { perkIds: number[]; perkStyle: number; perkSubStyle: number } }[],
   prefix: string,
 ) {
   const blue = players.filter((p) => p.team === 100);
@@ -63,9 +63,14 @@ function buildTeamParticipants(
       spell1Id: p.spells[0],
       spell2Id: p.spells[1],
       teamId: p.team,
-      perkKeystone: p.perks?.[0] ?? 8112,
-      perkPrimaryStyle: p.perks?.[1] ?? 8100,
-      perkSubStyle: p.perks?.[2] ?? 8300,
+      perkKeystone: p.fullPerks?.perkIds?.[0] ?? p.perks?.[0] ?? 8112,
+      perkPrimaryStyle: p.fullPerks?.perkStyle ?? p.perks?.[1] ?? 8100,
+      perkSubStyle: p.fullPerks?.perkSubStyle ?? p.perks?.[2] ?? 8300,
+      perks: p.fullPerks ?? {
+        perkIds: [p.perks?.[0] ?? 8112, 8139, 8138, 8135, 8233, 8237],
+        perkStyle: p.perks?.[1] ?? 8100,
+        perkSubStyle: p.perks?.[2] ?? 8300,
+      },
     })),
     red: red.map((p, i) => ({
       puuid: `${prefix}-RED-${i}`,
@@ -74,9 +79,14 @@ function buildTeamParticipants(
       spell1Id: p.spells[0],
       spell2Id: p.spells[1],
       teamId: p.team,
-      perkKeystone: p.perks?.[0] ?? 8112,
-      perkPrimaryStyle: p.perks?.[1] ?? 8100,
-      perkSubStyle: p.perks?.[2] ?? 8300,
+      perkKeystone: p.fullPerks?.perkIds?.[0] ?? p.perks?.[0] ?? 8112,
+      perkPrimaryStyle: p.fullPerks?.perkStyle ?? p.perks?.[1] ?? 8100,
+      perkSubStyle: p.fullPerks?.perkSubStyle ?? p.perks?.[2] ?? 8300,
+      perks: p.fullPerks ?? {
+        perkIds: [p.perks?.[0] ?? 8112, 8139, 8138, 8135, 8233, 8237],
+        perkStyle: p.perks?.[1] ?? 8100,
+        perkSubStyle: p.perks?.[2] ?? 8300,
+      },
     })),
   };
 }
@@ -88,16 +98,16 @@ function buildTeamParticipants(
 export const TEST_PUUID = "TEST-PUUID-0000-0000-000000000000";
 
 const legacyPlayers = [
-  { name: "xXMidGodXx#TEST",      champId: 238,  spells: [4, 14] as const,  team: 100, perks: [8112, 8100, 8000] as const },  // Electrocute
-  { name: "JungleDiff99#TEST",     champId: 64,   spells: [4, 11] as const,  team: 100, perks: [8010, 8000, 8100] as const },  // Conqueror
-  { name: "ADCarryMe#TEST",        champId: 51,   spells: [4, 7] as const,   team: 100, perks: [8005, 8000, 8200] as const },  // Press the Attack
-  { name: "HookCityBaby#TEST",     champId: 412,  spells: [4, 14] as const,  team: 100, perks: [8439, 8400, 8300] as const },  // Aftershock
-  { name: "TopDiffGG#TEST",        champId: 86,   spells: [4, 12] as const,  team: 100, perks: [8437, 8400, 8000] as const },  // Grasp of the Undying
-  { name: "DarkMage666#TEST",      champId: 45,   spells: [4, 14] as const,  team: 200, perks: [8214, 8200, 8100] as const },  // Summon Aery
-  { name: "GankMachine#TEST",      champId: 254,  spells: [4, 11] as const,  team: 200, perks: [8010, 8000, 8400] as const },  // Conqueror
-  { name: "PewPewBot#TEST",        champId: 222,  spells: [4, 7] as const,   team: 200, perks: [9923, 8000, 8200] as const },  // Hail of Blades
-  { name: "WardBot9000#TEST",      champId: 117,  spells: [4, 3] as const,   team: 200, perks: [8351, 8300, 8200] as const },  // Glacial Augment
-  { name: "SplitPusher#TEST",      champId: 24,   spells: [4, 12] as const,  team: 200, perks: [8010, 8000, 8400] as const },  // Conqueror
+  { name: "xXMidGodXx#TEST",      champId: 238,  spells: [4, 14] as const,  team: 100, fullPerks: { perkIds: [8112, 8139, 8138, 8135, 8009, 8299], perkStyle: 8100, perkSubStyle: 8000 } },
+  { name: "JungleDiff99#TEST",     champId: 64,   spells: [4, 11] as const,  team: 100, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8139, 8135], perkStyle: 8000, perkSubStyle: 8100 } },
+  { name: "ADCarryMe#TEST",        champId: 51,   spells: [4, 7] as const,   team: 100, fullPerks: { perkIds: [8005, 9111, 9104, 8299, 8233, 8237], perkStyle: 8000, perkSubStyle: 8200 } },
+  { name: "HookCityBaby#TEST",     champId: 412,  spells: [4, 14] as const,  team: 100, fullPerks: { perkIds: [8439, 8446, 8429, 8451, 8345, 8347], perkStyle: 8400, perkSubStyle: 8300 } },
+  { name: "TopDiffGG#TEST",        champId: 86,   spells: [4, 12] as const,  team: 100, fullPerks: { perkIds: [8437, 8446, 8429, 8451, 9111, 9104], perkStyle: 8400, perkSubStyle: 8000 } },
+  { name: "DarkMage666#TEST",      champId: 45,   spells: [4, 14] as const,  team: 200, fullPerks: { perkIds: [8214, 8226, 8210, 8237, 8139, 8135], perkStyle: 8200, perkSubStyle: 8100 } },
+  { name: "GankMachine#TEST",      champId: 254,  spells: [4, 11] as const,  team: 200, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8446, 8451], perkStyle: 8000, perkSubStyle: 8400 } },
+  { name: "PewPewBot#TEST",        champId: 222,  spells: [4, 7] as const,   team: 200, fullPerks: { perkIds: [9923, 8139, 8138, 8135, 8233, 8237], perkStyle: 8100, perkSubStyle: 8200 } },
+  { name: "WardBot9000#TEST",      champId: 117,  spells: [4, 3] as const,   team: 200, fullPerks: { perkIds: [8351, 8313, 8345, 8347, 8233, 8237], perkStyle: 8300, perkSubStyle: 8200 } },
+  { name: "SplitPusher#TEST",      champId: 24,   spells: [4, 12] as const,  team: 200, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8446, 8451], perkStyle: 8000, perkSubStyle: 8400 } },
 ];
 
 export const MOCK_RESOLVE = {
@@ -162,16 +172,16 @@ export const SMURF_TEST_RESOLVE = {
 };
 
 const smurfPlayers = [
-  { name: "NewAccSmurf#TEST",    champId: 238,  spells: [4, 14] as const, team: 100, perks: [8112, 8100, 8200] as const },  // Electrocute
-  { name: "WinrateGod#TEST",     champId: 64,   spells: [4, 11] as const, team: 100, perks: [8010, 8000, 8100] as const },  // Conqueror
-  { name: "SusLevel110#TEST",    champId: 51,   spells: [4, 7] as const,  team: 100, perks: [8005, 8000, 8200] as const },  // Press the Attack
-  { name: "NormalGuy1#TEST",     champId: 412,  spells: [4, 14] as const, team: 100, perks: [8439, 8400, 8300] as const },  // Aftershock
-  { name: "NormalGuy2#TEST",     champId: 86,   spells: [4, 12] as const, team: 100, perks: [8437, 8400, 8000] as const },  // Grasp
-  { name: "ChampAbuser#TEST",    champId: 45,   spells: [4, 14] as const, team: 200, perks: [8214, 8200, 8100] as const },  // Summon Aery
-  { name: "SusLevel105#TEST",    champId: 254,  spells: [4, 11] as const, team: 200, perks: [8010, 8000, 8400] as const },  // Conqueror
-  { name: "SusLevel115#TEST",    champId: 222,  spells: [4, 7] as const,  team: 200, perks: [8005, 8000, 8200] as const },  // Press the Attack
-  { name: "CasualPlayer#TEST",   champId: 117,  spells: [4, 3] as const,  team: 200, perks: [8351, 8300, 8200] as const },  // Glacial Augment
-  { name: "VeteranDad#TEST",     champId: 24,   spells: [4, 12] as const, team: 200, perks: [8010, 8000, 8400] as const },  // Conqueror
+  { name: "NewAccSmurf#TEST",    champId: 238,  spells: [4, 14] as const, team: 100, fullPerks: { perkIds: [8112, 8139, 8138, 8135, 8233, 8237], perkStyle: 8100, perkSubStyle: 8200 } },
+  { name: "WinrateGod#TEST",     champId: 64,   spells: [4, 11] as const, team: 100, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8139, 8135], perkStyle: 8000, perkSubStyle: 8100 } },
+  { name: "SusLevel110#TEST",    champId: 51,   spells: [4, 7] as const,  team: 100, fullPerks: { perkIds: [8005, 9111, 9104, 8299, 8233, 8237], perkStyle: 8000, perkSubStyle: 8200 } },
+  { name: "NormalGuy1#TEST",     champId: 412,  spells: [4, 14] as const, team: 100, fullPerks: { perkIds: [8439, 8446, 8429, 8451, 8345, 8347], perkStyle: 8400, perkSubStyle: 8300 } },
+  { name: "NormalGuy2#TEST",     champId: 86,   spells: [4, 12] as const, team: 100, fullPerks: { perkIds: [8437, 8446, 8429, 8451, 9111, 9104], perkStyle: 8400, perkSubStyle: 8000 } },
+  { name: "ChampAbuser#TEST",    champId: 45,   spells: [4, 14] as const, team: 200, fullPerks: { perkIds: [8214, 8226, 8210, 8237, 8139, 8135], perkStyle: 8200, perkSubStyle: 8100 } },
+  { name: "SusLevel105#TEST",    champId: 254,  spells: [4, 11] as const, team: 200, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8446, 8451], perkStyle: 8000, perkSubStyle: 8400 } },
+  { name: "SusLevel115#TEST",    champId: 222,  spells: [4, 7] as const,  team: 200, fullPerks: { perkIds: [8005, 9111, 9104, 8299, 8233, 8237], perkStyle: 8000, perkSubStyle: 8200 } },
+  { name: "CasualPlayer#TEST",   champId: 117,  spells: [4, 3] as const,  team: 200, fullPerks: { perkIds: [8351, 8313, 8345, 8347, 8233, 8237], perkStyle: 8300, perkSubStyle: 8200 } },
+  { name: "VeteranDad#TEST",     champId: 24,   spells: [4, 12] as const, team: 200, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8446, 8451], perkStyle: 8000, perkSubStyle: 8400 } },
 ];
 
 export const SMURF_MOCK_LIVE_GAME = {
@@ -306,6 +316,11 @@ export function isSmurfTestPuuid(puuid: string): boolean {
 /** Get legacy mock summary (old "test" account) */
 export function getMockPlayerSummary(puuid: string): MockSummary | undefined {
   return legacySummaries.find((s) => s.puuid === puuid);
+}
+
+/** Get all legacy mock summaries (for batch endpoint) */
+export function getAllLegacyMockSummaries(): MockSummary[] {
+  return legacySummaries;
 }
 
 /** Get smurf-test mock summary (includes smurf assessment) */

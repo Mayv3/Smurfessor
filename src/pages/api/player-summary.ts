@@ -40,8 +40,8 @@ export const GET: APIRoute = async ({ url }) => {
     const summoner = await getSummonerByPuuid(parsed.data.puuid);
 
     const [entries, masteries] = await Promise.all([
-      getLeagueEntries(summoner.id),
-      getChampionMasteries(summoner.id),
+      getLeagueEntries(parsed.data.puuid),
+      getChampionMasteries(parsed.data.puuid),
     ]);
 
     const soloQueue =

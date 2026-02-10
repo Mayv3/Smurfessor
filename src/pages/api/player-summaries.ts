@@ -191,7 +191,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     try {
       const summoner = await getSummonerByPuuid(p.puuid, platform);
-      const entries = await getLeagueEntries(summoner.id, platform);
+      const entries = await getLeagueEntries(p.puuid, platform);
 
       const soloQueue = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
       const flexQueue = entries.find((e) => e.queueType === "RANKED_FLEX_SR") ?? null;
