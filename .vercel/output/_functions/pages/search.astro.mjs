@@ -1,10 +1,10 @@
 import { e as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_CxIlnfDj.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../chunks/Layout_2JFmLken.mjs';
+import { $ as $$Layout } from '../chunks/Layout_CRjDM8G8.mjs';
 import { jsx, jsxs } from 'react/jsx-runtime';
 import { useState, useCallback } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { S as SkeletonLoader, E as ErrorBanner, M as MatchView, I as IconRefresh, O as OfflineView } from '../chunks/ErrorBanner_Ci3cR-NQ.mjs';
+import { S as SkeletonLoader, E as ErrorBanner, M as MatchView, I as IconRefresh, O as OfflineView } from '../chunks/ErrorBanner_DgSS1eGX.mjs';
 export { renderers } from '../renderers.mjs';
 
 const queryClient = new QueryClient({
@@ -214,10 +214,10 @@ function SearchPage() {
 const $$Search = createComponent(($$result, $$props, $$slots) => {
   return renderTemplate`${renderComponent($$result, "Layout", $$Layout, { "title": "Buscar invocador" }, { "default": ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="mb-4"> <a href="/" class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
 ← Volver al dashboard
-</a> </div> ${renderComponent($$result2, "SearchPage", SearchPage, { "client:load": true, "client:component-hydration": "load", "client:component-path": "C:/Users/nicop/OneDrive/Desktop/Chotofessor/src/components/SearchPage", "client:component-export": "SearchPage" })} ` })}`;
-}, "C:/Users/nicop/OneDrive/Desktop/Chotofessor/src/pages/search.astro", void 0);
+</a> </div> ${renderComponent($$result2, "SearchPage", SearchPage, { "client:load": true, "client:component-hydration": "load", "client:component-path": "C:/Users/pacho/Desktop/projectito/Smurfessor/src/components/SearchPage", "client:component-export": "SearchPage" })} ` })}`;
+}, "C:/Users/pacho/Desktop/projectito/Smurfessor/src/pages/search.astro", void 0);
 
-const $$file = "C:/Users/nicop/OneDrive/Desktop/Chotofessor/src/pages/search.astro";
+const $$file = "C:/Users/pacho/Desktop/projectito/Smurfessor/src/pages/search.astro";
 const $$url = "/search";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

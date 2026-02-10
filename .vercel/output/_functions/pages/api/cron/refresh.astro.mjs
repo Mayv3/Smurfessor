@@ -1,6 +1,6 @@
 import { A as ACCOUNTS } from '../../../chunks/accounts_BS9-O4eu.mjs';
-import { g as getAccountByRiotId, a as getSummonerByPuuid, b as getLeagueEntries, c as getChampionMasteries } from '../../../chunks/endpoints_D2z58zB3.mjs';
-import { b as bootstrap } from '../../../chunks/index_Bk0Vuwf0.mjs';
+import { g as getAccountByRiotId, a as getSummonerByPuuid, b as getLeagueEntries, c as getChampionMasteries } from '../../../chunks/endpoints_DHK-CytZ.mjs';
+import { b as bootstrap } from '../../../chunks/index_F0teeQqx.mjs';
 import { e as err, o as ok } from '../../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../../renderers.mjs';
 
@@ -31,10 +31,10 @@ const GET = async ({ request, url }) => {
         account.riotId.gameName,
         account.riotId.tagLine
       );
-      const summoner = await getSummonerByPuuid(riot.puuid);
+      await getSummonerByPuuid(riot.puuid);
       await Promise.all([
-        getLeagueEntries(summoner.id),
-        getChampionMasteries(summoner.id)
+        getLeagueEntries(riot.puuid),
+        getChampionMasteries(riot.puuid)
       ]);
       refreshed++;
     } catch (e) {

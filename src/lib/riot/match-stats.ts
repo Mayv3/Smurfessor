@@ -12,7 +12,7 @@ import { RiotApiError } from "../riot/errors";
 
 export interface ChampionRecentStats {
   championId: number;
-  /** "30d" window label */
+  /** "7d" window label */
   recentWindow: string;
   /** Total ranked games found in the window */
   totalRankedGames: number;
@@ -25,17 +25,17 @@ export interface ChampionRecentStats {
   note?: string;
 }
 
-/** 30 days in seconds */
-const WINDOW_SECONDS = 30 * 24 * 60 * 60;
+/** 7 days in seconds */
+const WINDOW_SECONDS = 7 * 24 * 60 * 60;
 /** Max IDs per Match-V5 page */
 const PAGE_SIZE = 100;
-/** Absolute cap — don't fetch more than 200 match details per player */
-const MAX_MATCH_DETAILS = 200;
+/** Absolute cap — don't fetch more than 50 match details per player */
+const MAX_MATCH_DETAILS = 50;
 /** Minimum games with champion to consider the sample reliable */
 const MIN_SAMPLE_SIZE = 3;
 
 /**
- * Fetch all ranked match IDs for `puuid` in the last 30 days.
+ * Fetch all ranked match IDs for `puuid` in the last 7 days.
  * Paginates automatically up to MAX_MATCH_DETAILS.
  */
 async function fetchRankedMatchIds(
@@ -79,7 +79,7 @@ export async function getChampionRecentStats(
   if (!FEATURES.matchHistory) {
     return {
       championId,
-      recentWindow: "30d",
+      recentWindow: "7d",
       totalRankedGames: 0,
       gamesWithChamp: 0,
       wins: 0,
@@ -91,7 +91,7 @@ export async function getChampionRecentStats(
   }
 
   /* Check cache first */
-  const cacheKey = `${puuid}:${championId}:30d:${platform ?? "la2"}`;
+  const cacheKey = `${puuid}:${championId}:7d:${platform ?? "la2"}`;
   const hit = getCached<ChampionRecentStats>("champStats", cacheKey, TTL.CHAMP_STATS);
   if (hit) return hit;
 
@@ -102,7 +102,7 @@ export async function getChampionRecentStats(
     if (matchIds.length === 0) {
       const result: ChampionRecentStats = {
         championId,
-        recentWindow: "30d",
+        recentWindow: "7d",
         totalRankedGames: 0,
         gamesWithChamp: 0,
         wins: 0,
@@ -156,7 +156,7 @@ export async function getChampionRecentStats(
 
     const result: ChampionRecentStats = {
       championId,
-      recentWindow: "30d",
+      recentWindow: "7d",
       totalRankedGames: matchIds.length,
       gamesWithChamp,
       wins,
@@ -178,7 +178,7 @@ export async function getChampionRecentStats(
     console.warn(`[match-stats] Failed to compute champ stats for ${puuid}: ${detail}`);
     return {
       championId,
-      recentWindow: "30d",
+      recentWindow: "7d",
       totalRankedGames: 0,
       gamesWithChamp: 0,
       wins: 0,

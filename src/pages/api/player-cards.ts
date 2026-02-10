@@ -81,7 +81,7 @@ function buildRanked(
 
 function emptyChampStats(_championId: number, note: string): PlayerCardChampStats {
   return {
-    recentWindow: "30d",
+    recentWindow: "7d",
     totalRankedGames: 0,
     gamesWithChamp: null,
     winrateWithChamp: null,
@@ -341,7 +341,7 @@ function buildSmurfTestCards(
         ? { id: p.championId, name: champData.name, icon: champData.image }
         : { id: p.championId, name: "Unknown", icon: "" },
       champStats: {
-        recentWindow: "30d",
+        recentWindow: "7d",
         totalRankedGames: 0,
         gamesWithChamp: champSample > 0 ? champSample : null,
         winrateWithChamp: champWR,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { a as getSummonerByPuuid, b as getLeagueEntries, c as getChampionMasteries, R as RiotApiError } from '../../chunks/endpoints_D2z58zB3.mjs';
-import { i as isSmurfTestPuuid, d as getSmurfMockPlayerSummary, a as isTestPuuid, g as getMockPlayerSummary } from '../../chunks/mock-data_BDHGij8S.mjs';
+import { a as getSummonerByPuuid, b as getLeagueEntries, c as getChampionMasteries, R as RiotApiError } from '../../chunks/endpoints_DHK-CytZ.mjs';
+import { i as isSmurfTestPuuid, d as getSmurfMockPlayerSummary, a as isTestPuuid, g as getMockPlayerSummary } from '../../chunks/mock-data_DUIVrbyk.mjs';
 import { e as err, o as ok } from '../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../renderers.mjs';
 
@@ -27,8 +27,8 @@ const GET = async ({ url }) => {
   try {
     const summoner = await getSummonerByPuuid(parsed.data.puuid);
     const [entries, masteries] = await Promise.all([
-      getLeagueEntries(summoner.id),
-      getChampionMasteries(summoner.id)
+      getLeagueEntries(parsed.data.puuid),
+      getChampionMasteries(parsed.data.puuid)
     ]);
     const soloQueue = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
     const flexQueue = entries.find((e) => e.queueType === "RANKED_FLEX_SR") ?? null;

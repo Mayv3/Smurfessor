@@ -4,7 +4,7 @@ export { renderers } from '../../renderers.mjs';
 const GET = async () => {
   let apiKey = "";
   try {
-    apiKey = "RGAPI-1eaac8de-09e1-4a96-946e-4558be7ba4f9";
+    apiKey = "RGAPI-ffcdf7c3-b993-406a-9b11-33ff9e280b70";
   } catch {
     apiKey = "";
   }

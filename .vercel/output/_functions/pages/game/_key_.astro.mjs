@@ -1,10 +1,10 @@
 import { e as createComponent, k as renderComponent, r as renderTemplate, h as createAstro, m as maybeRenderHead } from '../../chunks/astro/server_CxIlnfDj.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../../chunks/Layout_2JFmLken.mjs';
+import { $ as $$Layout } from '../../chunks/Layout_CRjDM8G8.mjs';
 import { jsx, jsxs } from 'react/jsx-runtime';
 import { useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { S as SkeletonLoader, E as ErrorBanner, M as MatchView, I as IconRefresh, O as OfflineView } from '../../chunks/ErrorBanner_Ci3cR-NQ.mjs';
+import { S as SkeletonLoader, E as ErrorBanner, M as MatchView, I as IconRefresh, O as OfflineView } from '../../chunks/ErrorBanner_DgSS1eGX.mjs';
 import { A as ACCOUNTS } from '../../chunks/accounts_BS9-O4eu.mjs';
 export { renderers } from '../../renderers.mjs';
 
@@ -19,29 +19,16 @@ const queryClient = new QueryClient({
 });
 function GamePageInner({ accountKey }) {
   const [retryCount, setRetryCount] = useState(0);
-  const resolveQ = useQuery({
-    queryKey: ["resolve", accountKey],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/resolve?key=${encodeURIComponent(accountKey)}`
-      );
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error?.message ?? "Resolve failed");
-      return json.data;
-    }
-  });
   const liveQ = useQuery({
-    queryKey: ["live-game", resolveQ.data?.puuid, retryCount],
+    queryKey: ["live-game", accountKey, retryCount],
     queryFn: async () => {
-      const puuid = resolveQ.data.puuid;
       const res = await fetch(
-        `/api/live-game?puuid=${encodeURIComponent(puuid)}&platform=LA2`
+        `/api/live-game?key=${encodeURIComponent(accountKey)}`
       );
       const json = await res.json();
       if (!json.ok) throw new Error(json.error?.message ?? "Live-game failed");
       return json.data;
-    },
-    enabled: !!resolveQ.data?.puuid
+    }
   });
   const ddQ = useQuery({
     queryKey: ["ddragon-bootstrap"],
@@ -54,11 +41,8 @@ function GamePageInner({ accountKey }) {
     staleTime: 60 * 60 * 1e3
     // 1 h client-side
   });
-  if (resolveQ.isLoading || liveQ.isLoading || ddQ.isLoading) {
+  if (liveQ.isLoading || ddQ.isLoading) {
     return /* @__PURE__ */ jsx(SkeletonLoader, {});
-  }
-  if (resolveQ.isError) {
-    return /* @__PURE__ */ jsx(ErrorBanner, { message: resolveQ.error.message });
   }
   if (ddQ.isError) {
     return /* @__PURE__ */ jsx(ErrorBanner, { message: `DDragon: ${ddQ.error.message}` });
@@ -88,7 +72,7 @@ function GamePageInner({ accountKey }) {
     /* @__PURE__ */ jsx(
       OfflineView,
       {
-        account: resolveQ.data?.account,
+        account: void 0,
         reason: liveGame?.reason ?? "NOT_IN_GAME"
       }
     ),
@@ -120,10 +104,10 @@ const $$key = createComponent(($$result, $$props, $$slots) => {
   }
   return renderTemplate`${renderComponent($$result, "Layout", $$Layout, { "title": account.riotId.gameName }, { "default": ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="mb-4"> <a href="/" class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
 ← Volver al dashboard
-</a> </div> ${renderComponent($$result2, "GamePage", GamePage, { "accountKey": account.key, "client:load": true, "client:component-hydration": "load", "client:component-path": "C:/Users/nicop/OneDrive/Desktop/Chotofessor/src/components/GamePage", "client:component-export": "GamePage" })} ` })}`;
-}, "C:/Users/nicop/OneDrive/Desktop/Chotofessor/src/pages/game/[key].astro", void 0);
+</a> </div> ${renderComponent($$result2, "GamePage", GamePage, { "accountKey": account.key, "client:load": true, "client:component-hydration": "load", "client:component-path": "C:/Users/pacho/Desktop/projectito/Smurfessor/src/components/GamePage", "client:component-export": "GamePage" })} ` })}`;
+}, "C:/Users/pacho/Desktop/projectito/Smurfessor/src/pages/game/[key].astro", void 0);
 
-const $$file = "C:/Users/nicop/OneDrive/Desktop/Chotofessor/src/pages/game/[key].astro";
+const $$file = "C:/Users/pacho/Desktop/projectito/Smurfessor/src/pages/game/[key].astro";
 const $$url = "/game/[key]";
 
 const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({

@@ -1,4 +1,4 @@
-import { b as bootstrap } from '../../../chunks/index_Bk0Vuwf0.mjs';
+import { b as bootstrap } from '../../../chunks/index_F0teeQqx.mjs';
 import { o as ok, e as err } from '../../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../../renderers.mjs';
 

@@ -302,7 +302,7 @@ export function PlayerCard({
         </div>
       )}
 
-      {/* ── Row 3: Champion WR + games (ranked 30d) ── */}
+      {/* ── Row 3: Champion WR + games (ranked 7d) ── */}
       {!loading && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-950/30 border border-blue-500/15">
           {champ && (
@@ -314,7 +314,7 @@ export function PlayerCard({
               <span className="text-[10px] text-gray-500">
                 {champGames}p / {champStats.totalRankedGames} ranked
               </span>
-              <span className="text-[9px] text-gray-600 ml-auto" title="Últimos 30 días ranked">30d</span>
+              <span className="text-[9px] text-gray-600 ml-auto" title="Últimos 7 días ranked">7d</span>
             </>
           ) : champStats.note === "FEATURE_DISABLED" ? (
             <span className="text-[10px] text-gray-600" title="Activa FEATURE_MATCH_HISTORY para ver winrate con campeón">
@@ -322,11 +322,11 @@ export function PlayerCard({
             </span>
           ) : champStats.totalRankedGames > 0 ? (
             <span className="text-[10px] text-gray-600">
-              0p / {champStats.totalRankedGames} ranked (30d)
+              0p / {champStats.totalRankedGames} ranked (7d)
             </span>
           ) : (
             <span className="text-[10px] text-gray-600">
-              {champStats.note === "NO_CHAMP_GAMES" ? "Sin partidas ranked (30d)" : "Champ WR: —"}
+              {champStats.note === "NO_CHAMP_GAMES" ? "Sin partidas ranked (7d)" : "Champ WR: —"}
             </span>
           )}
         </div>

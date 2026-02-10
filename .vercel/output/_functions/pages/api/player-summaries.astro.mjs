@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { a as getSummonerByPuuid, b as getLeagueEntries, R as RiotApiError, e as RiotErrorCode } from '../../chunks/endpoints_D2z58zB3.mjs';
-import { i as isSmurfTestPuuid, c as computeSmurfAssessment, a as isTestPuuid, g as getMockPlayerSummary, b as getAllSmurfMockSummaries } from '../../chunks/mock-data_BDHGij8S.mjs';
+import { a as getSummonerByPuuid, b as getLeagueEntries, R as RiotApiError, e as RiotErrorCode } from '../../chunks/endpoints_DHK-CytZ.mjs';
+import { i as isSmurfTestPuuid, c as computeSmurfAssessment, a as isTestPuuid, g as getMockPlayerSummary, b as getAllSmurfMockSummaries } from '../../chunks/mock-data_DUIVrbyk.mjs';
 import { e as err, o as ok } from '../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../renderers.mjs';
 
@@ -140,7 +140,7 @@ const POST = async ({ request }) => {
     }
     try {
       const summoner = await getSummonerByPuuid(p.puuid, platform);
-      const entries = await getLeagueEntries(summoner.id, platform);
+      const entries = await getLeagueEntries(p.puuid, platform);
       const soloQueue = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
       const flexQueue = entries.find((e) => e.queueType === "RANKED_FLEX_SR") ?? null;
       const entry = soloQueue ?? flexQueue;
