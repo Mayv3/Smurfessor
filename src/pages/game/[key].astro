@@ -12,10 +12,5 @@ if (!account) {
 ---
 
 <Layout title={account.riotId.gameName}>
-  <div class="mb-4">
-    <a href="/" class="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
-      ← Volver al dashboard
-    </a>
-  </div>
   <GamePage accountKey={account.key} client:load />
 </Layout>

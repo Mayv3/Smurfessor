@@ -45,9 +45,11 @@ import { ApiKeyBanner } from "../components/ApiKeyBanner";
     </header>
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
-      <ApiKeyBanner client:load />
       <slot />
     </main>
+
+    <!-- Fixed API Key Status Badge -->
+    <ApiKeyBanner client:load />
 
     <footer class="text-center text-gray-700 text-xs py-4 border-t border-gray-800/50">
       Smurfessor — Proyecto no oficial. No afiliado a Riot Games.

@@ -1,4 +1,10 @@
 import { useState, useEffect } from "react";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import WarningIcon from "@mui/icons-material/Warning";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import SpeedIcon from "@mui/icons-material/Speed";
+import WifiOffIcon from "@mui/icons-material/WifiOff";
 
 type KeyStatus = "loading" | "active" | "expired" | "missing" | "rate-limited" | "error";
 
@@ -7,18 +13,23 @@ interface StatusData {
   message: string;
 }
 
-const CONFIG: Record<KeyStatus, { icon: string; bg: string; text: string }> = {
-  loading:      { icon: "⏳", bg: "bg-gray-700/60 border-gray-600",   text: "text-gray-300" },
-  active:       { icon: "✅", bg: "bg-emerald-900/50 border-emerald-600/40", text: "text-emerald-300" },
-  expired:      { icon: "❌", bg: "bg-red-900/50 border-red-500/40",  text: "text-red-300" },
-  missing:      { icon: "⚠️", bg: "bg-yellow-900/50 border-yellow-600/40", text: "text-yellow-300" },
-  "rate-limited": { icon: "🟡", bg: "bg-yellow-900/50 border-yellow-600/40", text: "text-yellow-300" },
-  error:        { icon: "🔌", bg: "bg-orange-900/50 border-orange-500/40", text: "text-orange-300" },
+const CONFIG: Record<KeyStatus, { 
+  Icon: typeof CheckCircleIcon; 
+  bg: string; 
+  border: string; 
+  text: string; 
+  dot: string 
+}> = {
+  loading:      { Icon: HourglassEmptyIcon, bg: "bg-gray-800/90",      border: "border-gray-700/60",     text: "text-gray-300",    dot: "bg-gray-500" },
+  active:       { Icon: CheckCircleIcon,    bg: "bg-emerald-900/90",  border: "border-emerald-600/60", text: "text-emerald-300", dot: "bg-emerald-500" },
+  expired:      { Icon: ErrorIcon,          bg: "bg-red-900/90",      border: "border-red-500/60",     text: "text-red-300",     dot: "bg-red-500" },
+  missing:      { Icon: WarningIcon,        bg: "bg-yellow-900/90",   border: "border-yellow-600/60",  text: "text-yellow-300",  dot: "bg-yellow-500" },
+  "rate-limited": { Icon: SpeedIcon,        bg: "bg-yellow-900/90",   border: "border-yellow-600/60",  text: "text-yellow-300",  dot: "bg-yellow-500" },
+  error:        { Icon: WifiOffIcon,        bg: "bg-orange-900/90",   border: "border-orange-500/60",  text: "text-orange-300",  dot: "bg-orange-500" },
 };
 
 export function ApiKeyBanner() {
-  const [data, setData] = useState<StatusData>({ status: "loading", message: "Verificando API key…" });
-  const [dismissed, setDismissed] = useState(false);
+  const [data, setData] = useState<StatusData>({ status: "loading", message: "Verificando…" });
 
   useEffect(() => {
     fetch("/api/key-status")
@@ -30,51 +41,39 @@ export function ApiKeyBanner() {
       .catch(() => setData({ status: "error", message: "Error de red" }));
   }, []);
 
-  if (dismissed) return null;
-
-  /* Don't show banner if key is active — less noise */
-  if (data.status === "active") {
-    return (
-      <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs bg-emerald-900/30 border-emerald-700/30">
-        <span className="text-emerald-400">
-          ✅ {data.message}
-        </span>
-        <button
-          onClick={() => setDismissed(true)}
-          className="text-emerald-600 hover:text-emerald-400 transition-colors text-base leading-none"
-          aria-label="Cerrar"
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
-
   const cfg = CONFIG[data.status];
+  const StatusIcon = cfg.Icon;
 
   return (
-    <div className={`mb-4 flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 ${cfg.bg}`}>
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-base shrink-0">{cfg.icon}</span>
-        <span className={`text-sm font-medium ${cfg.text}`}>{data.message}</span>
-        {(data.status === "missing" || data.status === "expired") && (
-          <a
-            href="https://developer.riotgames.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2 shrink-0"
-          >
-            Obtener key →
-          </a>
-        )}
-      </div>
-      <button
-        onClick={() => setDismissed(true)}
-        className="text-gray-500 hover:text-white transition-colors text-base leading-none shrink-0"
-        aria-label="Cerrar"
+    <div className="fixed bottom-6 left-6 z-50 animate-slideUp">
+      <div
+        className={`flex items-center gap-3 rounded-2xl border backdrop-blur-xl shadow-2xl px-4 py-3 transition-all ${cfg.bg} ${cfg.border}`}
       >
-        ×
-      </button>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${cfg.dot} ${data.status === "active" ? "animate-pulse" : ""}`} />
+          <StatusIcon className={`${cfg.text} !w-5 !h-5`} />
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <span className={`text-xs font-semibold ${cfg.text} whitespace-nowrap`}>
+            {data.status === "loading" ? "Verificando API key" : data.message}
+          </span>
+          {(data.status === "missing" || data.status === "expired") && (
+            <a
+              href="https://developer.riotgames.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-indigo-400 hover:text-indigo-300 underline underline-offset-2 font-medium whitespace-nowrap"
+            >
+              Obtener key →
+            </a>
+          )}
+        </div>
+
+        <div className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-lg bg-black/20 ${cfg.text}`}>
+          {data.status}
+        </div>
+      </div>
     </div>
   );
 }
