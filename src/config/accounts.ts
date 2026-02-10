@@ -19,6 +19,12 @@ export const ACCOUNTS: TrackedAccount[] = [
     label: "Negro Bobi 🐒🍌",
   },
   {
+    key: "psychø-reyna",
+    riotId: { gameName: "Psychø", tagLine: "#Reyna" },
+    platform: "LA2",
+    label: "TORRES 🐺",
+  },
+  {
     key: "odioalossmurfs",
     riotId: { gameName: "OdioALosSmurfs", tagLine: "HATE" },
     platform: "LA2",
