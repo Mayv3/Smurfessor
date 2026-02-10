@@ -20,7 +20,7 @@ export const ACCOUNTS: TrackedAccount[] = [
   },
   {
     key: "psychø-reyna",
-    riotId: { gameName: "Psychø", tagLine: "#Reyna" },
+    riotId: { gameName: "Psychø", tagLine: "Reyna" },
     platform: "LA2",
     label: "TORRES 🐺",
   },
