@@ -150,10 +150,19 @@ function formatPoints(pts: number): string {
 
 /* ── Smurf visual helpers ─────────────────────────────── */
 function smurfCardClass(smurf?: SmurfAssessment, tier?: string): string {
-  if (smurf?.severity === "confirmed") return "border-red-500/50 animate-borderGlow";
-  if (smurf?.severity === "possible") return "border-yellow-500/40 animate-borderGlowYellow";
+  if (smurf?.severity === "confirmed") return "border-red-500/50 card-smurf";
+  if (smurf?.severity === "possible") return "border-yellow-500/40 card-possible-smurf";
   if (tier) return TIER_BORDER[tier] ?? "border-gray-700/40";
   return "border-gray-700/40";
+}
+
+function cardTypeClass(smurf?: SmurfAssessment, ranked?: PlayerCardRanked | null): string {
+  const parts: string[] = [];
+  if (ranked && !smurf?.severity || smurf?.severity === "none") {
+    if (isEscombro(ranked ?? null)) parts.push("card-escombro");
+    if (isEloQuemado(ranked ?? null)) parts.push("card-elo-quemado");
+  }
+  return parts.join(" ");
 }
 
 function tierGlowClass(tier?: string): string {
@@ -235,28 +244,88 @@ export function PlayerCard({
   const tier = ranked?.tier;
   const gradient = tier ? TIER_GRADIENT[tier] ?? "from-transparent to-transparent" : "from-transparent to-transparent";
   const glowCls = !loading && tier && smurf?.severity === "none" ? tierGlowClass(tier) : "";
+  const typeCls = !loading ? cardTypeClass(smurf, ranked) : "";
+  const isSmurf = smurf?.severity === "confirmed";
+  const isPossibleSmurf = smurf?.severity === "possible";
 
   return (
     <div
-      className={`relative rounded-xl border overflow-hidden bg-gray-900/90 backdrop-blur-sm flex flex-col w-full min-h-[280px] transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/30 group ${smurfCardClass(smurf, tier)} ${glowCls}`}
+      className={`relative rounded-xl border overflow-hidden bg-gray-900/90 backdrop-blur-sm flex flex-col w-full min-h-[280px] transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/30 group ${smurfCardClass(smurf, tier)} ${glowCls} ${typeCls}`}
       data-smurf-severity={smurf?.severity ?? "none"}
       data-testid="player-card"
     >
       {/* ── Tier gradient accent top ── */}
       <div className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${gradient} pointer-events-none`} />
 
+      {/* ── Type overlays ── */}
+      {isSmurf && (
+        <>
+          {/* Red tint */}
+          <div className="absolute inset-0 bg-red-500/[0.04] pointer-events-none z-0" />
+          {/* Moving scan line */}
+          <div className="absolute inset-x-0 top-0 h-12 pointer-events-none z-0 overflow-hidden">
+            <div className="w-full h-1 bg-gradient-to-r from-transparent via-red-500/30 to-transparent" style={{ animation: 'smurfScan 3s linear infinite' }} />
+          </div>
+          {/* Corner danger accent */}
+          <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none z-0">
+            <div className="absolute inset-0 bg-gradient-to-bl from-red-500/10 to-transparent" />
+          </div>
+        </>
+      )}
+      {isPossibleSmurf && (
+        <>
+          {/* Yellow tint */}
+          <div className="absolute inset-0 bg-yellow-500/[0.03] pointer-events-none z-0" />
+          {/* Warning stripe at top */}
+          <div className="absolute inset-x-0 top-0 h-1 pointer-events-none z-0">
+            <div className="h-full" style={{
+              background: 'repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(234,179,8,0.25) 8px, rgba(234,179,8,0.25) 16px)',
+              animation: 'warningPulse 3s ease-in-out infinite'
+            }} />
+          </div>
+        </>
+      )}
+      {escombro && !isSmurf && !isPossibleSmurf && (
+        <>
+          {/* Decay overlay */}
+          <div className="absolute inset-0 pointer-events-none z-0" style={{
+            background: 'radial-gradient(circle at 30% 80%, rgba(120,113,108,0.08), transparent 60%), radial-gradient(circle at 70% 20%, rgba(120,113,108,0.06), transparent 50%)',
+          }} />
+          {/* Subtle crack lines */}
+          <div className="absolute bottom-0 inset-x-0 h-8 pointer-events-none z-0">
+            <svg viewBox="0 0 200 20" className="w-full h-full opacity-10" preserveAspectRatio="none">
+              <path d="M0,10 L30,8 L45,15 L60,5 L80,12 L100,7 L130,14 L150,6 L170,11 L200,9" stroke="#78716c" strokeWidth="0.5" fill="none" />
+            </svg>
+          </div>
+        </>
+      )}
+      {eloQuemado && !isSmurf && !isPossibleSmurf && (
+        <>
+          {/* Fire gradient at bottom */}
+          <div className="absolute inset-x-0 bottom-0 h-20 pointer-events-none z-0" style={{
+            background: 'linear-gradient(to top, rgba(251,146,60,0.08), rgba(251,146,60,0.03) 50%, transparent)',
+            animation: 'fireRise 2.5s ease-in-out infinite',
+            transformOrigin: 'bottom'
+          }} />
+          {/* Ember dots */}
+          <div className="absolute bottom-2 left-1/4 w-1 h-1 rounded-full bg-orange-400/20 animate-float" style={{ animationDuration: '2s' }} />
+          <div className="absolute bottom-4 right-1/3 w-0.5 h-0.5 rounded-full bg-orange-500/30 animate-float" style={{ animationDuration: '3s', animationDelay: '0.5s' }} />
+          <div className="absolute bottom-1 right-1/4 w-0.5 h-0.5 rounded-full bg-yellow-400/20 animate-float" style={{ animationDuration: '2.5s', animationDelay: '1s' }} />
+        </>
+      )}
+
       {/* ── Card content ── */}
       <div className="relative flex flex-col gap-2.5 p-3.5 flex-1">
 
         {/* ── Corner badges ── */}
         {summonerLevel > 0 && !loading && (
-          <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 border border-gray-600/40 backdrop-blur-md z-10">
+          <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 border border-gray-600/40 backdrop-blur-md z-20">
             <IconPerson className="w-3 h-3 text-gray-400" />
             <span className="text-[10px] font-semibold text-gray-300">{summonerLevel}</span>
           </div>
         )}
 
-        <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-10">
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-20">
           {smurf && smurf.severity !== "none" && !loading && (
             <SmurfBadge
               severity={smurf.severity}

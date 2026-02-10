@@ -32,8 +32,8 @@
     100% { background-position: 200% 0; }
   }
   @keyframes pulseGlow {
-    0%, 100% { box-shadow: 0 0 6px 0 var(--glow-color, rgba(239,68,68,0.3)); }
-    50%      { box-shadow: 0 0 18px 4px var(--glow-color, rgba(239,68,68,0.5)); }
+    0%, 100% { box-shadow: 0 0 6px 0 var(--glow-color, transparent); }
+    50%      { box-shadow: 0 0 18px 4px var(--glow-color, transparent); }
   }
   @keyframes borderGlow {
     0%, 100% { border-color: rgba(239,68,68,0.35); }
@@ -81,6 +81,46 @@
     background-size: 200% 200%;
     animation: gradientShift 4s ease infinite;
   }
+
+  /* ── Card-type overlay animations ── */
+  @keyframes smurfScan {
+    0%   { transform: translateY(-100%); }
+    100% { transform: translateY(200%); }
+  }
+  @keyframes warningPulse {
+    0%, 100% { opacity: 0; }
+    50%      { opacity: 1; }
+  }
+  @keyframes decayDrift {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 100% 100%; }
+  }
+  @keyframes fireRise {
+    0%, 100% { opacity: 0.5; transform: scaleY(1); }
+    50%      { opacity: 0.8; transform: scaleY(1.15); }
+  }
+  @keyframes smurfBorderPulse {
+    0%, 100% { box-shadow: inset 0 0 12px 0 rgba(239,68,68,0.08), 0 0 8px 0 rgba(239,68,68,0.15); }
+    50%      { box-shadow: inset 0 0 20px 2px rgba(239,68,68,0.15), 0 0 16px 4px rgba(239,68,68,0.25); }
+  }
+  @keyframes possibleSmurfBorderPulse {
+    0%, 100% { box-shadow: inset 0 0 10px 0 rgba(234,179,8,0.06), 0 0 6px 0 rgba(234,179,8,0.1); }
+    50%      { box-shadow: inset 0 0 18px 2px rgba(234,179,8,0.12), 0 0 12px 3px rgba(234,179,8,0.18); }
+  }
+  @keyframes escombroShake {
+    0%, 100% { transform: translate(0, 0); }
+    25%      { transform: translate(-0.5px, 0.5px); }
+    75%      { transform: translate(0.5px, -0.5px); }
+  }
+  @keyframes eloQuemadoGlow {
+    0%, 100% { box-shadow: inset 0 -20px 30px -10px rgba(251,146,60,0.08), 0 0 6px 0 rgba(251,146,60,0.1); }
+    50%      { box-shadow: inset 0 -20px 30px -10px rgba(251,146,60,0.18), 0 0 14px 3px rgba(251,146,60,0.2); }
+  }
+
+  .card-smurf          { animation: borderGlow 2s ease-in-out infinite, smurfBorderPulse 2s ease-in-out infinite; }
+  .card-possible-smurf { animation: borderGlowYellow 2.5s ease-in-out infinite, possibleSmurfBorderPulse 2.5s ease-in-out infinite; }
+  .card-escombro       { animation: escombroShake 6s ease-in-out infinite; }
+  .card-elo-quemado    { animation: eloQuemadoGlow 2s ease-in-out infinite; }
 
   .delay-0 { animation-delay: 0ms; }
   .delay-1 { animation-delay: 70ms; }
