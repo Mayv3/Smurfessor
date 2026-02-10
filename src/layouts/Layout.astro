@@ -1,0 +1,54 @@
+---
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+import "../styles/global.css";
+import { ApiKeyBanner } from "../components/ApiKeyBanner";
+---
+
+<!doctype html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="description" content="Smurfessor — Dashboard de cuentas de League of Legends" />
+    <title>{title} | Smurfessor</title>
+  </head>
+  <body class="bg-gray-900 min-h-screen flex flex-col">
+    <header class="bg-gray-800/80 backdrop-blur border-b border-gray-700 sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+        <a
+          href="/"
+          class="text-xl font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+        >
+          🎮 Smurfessor
+        </a>
+        <span class="text-xs text-gray-500 hidden sm:inline">Porofessor-lite</span>
+        <div class="ml-auto">
+          <a
+            href="/search"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-400 hover:text-white bg-gray-700/50 hover:bg-gray-700 border border-gray-600 rounded-lg transition-colors"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="M21 21l-4.35-4.35"></path>
+            </svg>
+            Buscar
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+      <ApiKeyBanner client:load />
+      <slot />
+    </main>
+
+    <footer class="text-center text-gray-600 text-xs py-4 border-t border-gray-800">
+      Smurfessor — Proyecto no oficial. No afiliado a Riot Games.
+    </footer>
+  </body>
+</html>
