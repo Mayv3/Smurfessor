@@ -120,17 +120,40 @@ export async function getActiveGame(puuid: string, platform?: string): Promise<S
 }
 
 /* ─── Match-V5 (regional) — FEATURE FLAG ────────────── */
+export interface MatchIdsOptions {
+  count?: number;       // 1-100, default 20
+  type?: string;        // "ranked" | "normal" | "tourney" | "tutorial"
+  queue?: number;       // 420 = Solo/Duo, 440 = Flex
+  startTime?: number;   // epoch seconds
+  endTime?: number;     // epoch seconds
+  start?: number;       // pagination offset, default 0
+}
+
 export async function getMatchIds(
   puuid: string,
-  count = 10,
+  optionsOrCount?: MatchIdsOptions | number,
   platform?: string,
 ): Promise<string[]> {
-  const cacheKey = `${puuid}:${count}`;
+  /* Backwards compat: if a number is passed, treat as { count } */
+  const opts: MatchIdsOptions =
+    typeof optionsOrCount === "number"
+      ? { count: optionsOrCount }
+      : optionsOrCount ?? {};
+
+  const params = new URLSearchParams();
+  params.set("start", String(opts.start ?? 0));
+  params.set("count", String(opts.count ?? 20));
+  if (opts.type) params.set("type", opts.type);
+  if (opts.queue !== undefined) params.set("queue", String(opts.queue));
+  if (opts.startTime !== undefined) params.set("startTime", String(opts.startTime));
+  if (opts.endTime !== undefined) params.set("endTime", String(opts.endTime));
+
+  const cacheKey = `${puuid}:${params.toString()}`;
   const hit = getCached<string[]>("matchIds", cacheKey, TTL.MATCHES);
   if (hit) return hit;
 
   const base = regionalUrl(platform);
-  const url = `${base}/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=${count}`;
+  const url = `${base}/lol/match/v5/matches/by-puuid/${puuid}/ids?${params.toString()}`;
   const data = await riotFetch<string[]>(url);
   setCached("matchIds", cacheKey, data, TTL.MATCHES);
   return data;

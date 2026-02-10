@@ -137,7 +137,8 @@ export interface PlayerCardChampion {
 }
 
 export interface PlayerCardChampStats {
-  recentWindow: number;
+  recentWindow: string;
+  totalRankedGames: number;
   gamesWithChamp: number | null;
   winrateWithChamp: number | null;
   sampleSizeOk: boolean;

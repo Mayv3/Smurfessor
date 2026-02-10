@@ -22,7 +22,8 @@ export interface PlayerCardChampion {
 }
 
 export interface PlayerCardChampStats {
-  recentWindow: number;
+  recentWindow: string;
+  totalRankedGames: number;
   gamesWithChamp: number | null;
   winrateWithChamp: number | null;
   sampleSizeOk: boolean;
@@ -301,7 +302,7 @@ export function PlayerCard({
         </div>
       )}
 
-      {/* ── Row 3: Champion WR + games ── */}
+      {/* ── Row 3: Champion WR + games (ranked 30d) ── */}
       {!loading && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-950/30 border border-blue-500/15">
           {champ && (
@@ -310,18 +311,22 @@ export function PlayerCard({
           {champWR !== null && champGames > 0 ? (
             <>
               <span className={`text-sm font-bold ${wrColor(champWR)}`}>{champWR}%</span>
-              <span className="text-[10px] text-gray-500">{champGames} partidas</span>
-              {!champStats.sampleSizeOk && (
-                <span className="text-[9px] text-yellow-600 ml-auto" title="Muestra insuficiente (&lt;8)">⚠</span>
-              )}
+              <span className="text-[10px] text-gray-500">
+                {champGames}p / {champStats.totalRankedGames} ranked
+              </span>
+              <span className="text-[9px] text-gray-600 ml-auto" title="Últimos 30 días ranked">30d</span>
             </>
           ) : champStats.note === "FEATURE_DISABLED" ? (
             <span className="text-[10px] text-gray-600" title="Activa FEATURE_MATCH_HISTORY para ver winrate con campeón">
               Champ WR: —
             </span>
+          ) : champStats.totalRankedGames > 0 ? (
+            <span className="text-[10px] text-gray-600">
+              0p / {champStats.totalRankedGames} ranked (30d)
+            </span>
           ) : (
             <span className="text-[10px] text-gray-600">
-              {champStats.note === "NO_CHAMP_GAMES" ? "Sin partidas recientes" : "Champ WR: —"}
+              {champStats.note === "NO_CHAMP_GAMES" ? "Sin partidas ranked (30d)" : "Champ WR: —"}
             </span>
           )}
         </div>

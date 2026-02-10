@@ -45,7 +45,8 @@ interface PlayerCardDataFromAPI {
   } | null;
   currentChampion: { id: number; name: string; icon: string };
   champStats: {
-    recentWindow: number;
+    recentWindow: string;
+    totalRankedGames: number;
     gamesWithChamp: number | null;
     winrateWithChamp: number | null;
     sampleSizeOk: boolean;
@@ -127,7 +128,7 @@ function TeamSection({
               profileIconId={card?.profileIconId ?? 0}
               ranked={card?.ranked ?? null}
               currentChampion={card?.currentChampion ?? { id: p.championId, name: champ?.name ?? "Unknown", icon: champ?.image ?? "" }}
-              champStats={card?.champStats ?? { recentWindow: 20, gamesWithChamp: null, winrateWithChamp: null, sampleSizeOk: false }}
+              champStats={card?.champStats ?? { recentWindow: "30d", totalRankedGames: 0, gamesWithChamp: null, winrateWithChamp: null, sampleSizeOk: false }}
               runes={card?.runes ?? null}
               spells={card?.spells ?? null}
               smurf={card?.smurf ?? { severity: "none" as const, label: "No smurf", probability: 0, reasons: [] }}
