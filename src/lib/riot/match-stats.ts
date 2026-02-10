@@ -29,38 +29,29 @@ export interface ChampionRecentStats {
 const WINDOW_SECONDS = 7 * 24 * 60 * 60;
 /** Max IDs per Match-V5 page */
 const PAGE_SIZE = 100;
-/** Absolute cap — don't fetch more than 50 match details per player */
-const MAX_MATCH_DETAILS = 50;
+/** Absolute cap — don't fetch more than 20 match details per player */
+const MAX_MATCH_DETAILS = 20;
+/** Stop fetching once we find this many games with the target champion */
+const EARLY_STOP_CHAMP_GAMES = 5;
 /** Minimum games with champion to consider the sample reliable */
 const MIN_SAMPLE_SIZE = 3;
 
 /**
- * Fetch all ranked match IDs for `puuid` in the last 7 days.
- * Paginates automatically up to MAX_MATCH_DETAILS.
+ * Fetch ranked match IDs for `puuid` in the last 7 days.
+ * Single page of 100 is usually enough (most players play <100 ranked/week).
  */
 async function fetchRankedMatchIds(
   puuid: string,
   platform?: string,
 ): Promise<string[]> {
   const startTime = Math.floor(Date.now() / 1000) - WINDOW_SECONDS;
-  const all: string[] = [];
-  let offset = 0;
-
-  while (all.length < MAX_MATCH_DETAILS) {
-    const opts: MatchIdsOptions = {
-      type: "ranked",
-      startTime,
-      count: PAGE_SIZE,
-      start: offset,
-    };
-    const page = await getMatchIds(puuid, opts, platform);
-    if (page.length === 0) break;
-    all.push(...page);
-    if (page.length < PAGE_SIZE) break; // last page
-    offset += PAGE_SIZE;
-  }
-
-  return all.slice(0, MAX_MATCH_DETAILS);
+  const opts: MatchIdsOptions = {
+    type: "ranked",
+    startTime,
+    count: PAGE_SIZE,
+    start: 0,
+  };
+  return getMatchIds(puuid, opts, platform);
 }
 
 /**
@@ -96,10 +87,10 @@ export async function getChampionRecentStats(
   if (hit) return hit;
 
   try {
-    /* 1) Fetch ALL ranked match IDs from last 30 days */
-    const matchIds = await fetchRankedMatchIds(puuid, platform);
+    /* 1) Fetch ranked match IDs from last 7 days (single page, 1 call) */
+    const allMatchIds = await fetchRankedMatchIds(puuid, platform);
 
-    if (matchIds.length === 0) {
+    if (allMatchIds.length === 0) {
       const result: ChampionRecentStats = {
         championId,
         recentWindow: "7d",
@@ -115,16 +106,24 @@ export async function getChampionRecentStats(
       return result;
     }
 
-    /* 2) Fetch match details (each one cached 24h individually) */
-    const BATCH_SIZE = 3; // small batches to avoid rate limit pressure
+    /* 2) Fetch match details with early-stop:
+       Stop as soon as we find EARLY_STOP_CHAMP_GAMES with the target champion,
+       or hit MAX_MATCH_DETAILS. Batches of 3 to respect rate limits. */
+    const BATCH_SIZE = 3;
+    const matchIds = allMatchIds.slice(0, MAX_MATCH_DETAILS);
     let gamesWithChamp = 0;
     let wins = 0;
+    let detailsFetched = 0;
 
     for (let i = 0; i < matchIds.length; i += BATCH_SIZE) {
+      /* Early stop — enough champion games found */
+      if (gamesWithChamp >= EARLY_STOP_CHAMP_GAMES) break;
+
       const batch = matchIds.slice(i, i + BATCH_SIZE);
       const settled = await Promise.allSettled(
         batch.map((id) => getMatch(id, platform)),
       );
+      detailsFetched += batch.length;
 
       for (const s of settled) {
         if (s.status !== "fulfilled" || !s.value) continue;
@@ -157,7 +156,7 @@ export async function getChampionRecentStats(
     const result: ChampionRecentStats = {
       championId,
       recentWindow: "7d",
-      totalRankedGames: matchIds.length,
+      totalRankedGames: allMatchIds.length,
       gamesWithChamp,
       wins,
       losses,

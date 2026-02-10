@@ -30,6 +30,11 @@ export interface PlayerCardChampStats {
   note?: string;
 }
 
+export interface PlayerCardMastery {
+  championLevel: number;
+  championPoints: number;
+}
+
 export interface PlayerCardSpell {
   id: number;
   name: string;
@@ -45,6 +50,7 @@ export interface PlayerCardProps {
   ranked: PlayerCardRanked | null;
   currentChampion: PlayerCardChampion;
   champStats: PlayerCardChampStats;
+  mastery: PlayerCardMastery | null;
   runes: NormalizedRunes | null;
   spells: { spell1: PlayerCardSpell; spell2: PlayerCardSpell } | null;
   smurf: SmurfAssessment;
@@ -93,6 +99,21 @@ function wrColor(wr: number): string {
   return "text-gray-400";
 }
 
+/* ── Mastery badge color/label helpers ────────────────── */
+function masteryBadge(level: number): { text: string; cls: string } {
+  if (level >= 7) return { text: "M7", cls: "bg-cyan-600/80 text-cyan-100 border-cyan-400/60" };
+  if (level >= 6) return { text: "M6", cls: "bg-purple-600/80 text-purple-100 border-purple-400/60" };
+  if (level >= 5) return { text: "M5", cls: "bg-red-600/80 text-red-100 border-red-400/60" };
+  if (level >= 4) return { text: "M4", cls: "bg-amber-700/80 text-amber-100 border-amber-500/60" };
+  return { text: `M${level}`, cls: "bg-gray-600/80 text-gray-200 border-gray-500/60" };
+}
+
+function formatPoints(pts: number): string {
+  if (pts >= 1_000_000) return `${(pts / 1_000_000).toFixed(1)}M`;
+  if (pts >= 1_000) return `${Math.round(pts / 1_000)}k`;
+  return String(pts);
+}
+
 /* ── Smurf visual helpers ─────────────────────────────── */
 function smurfCardClass(smurf?: SmurfAssessment): string {
   if (!smurf) return "border-gray-700/60";
@@ -138,6 +159,7 @@ export function PlayerCard({
   ranked,
   currentChampion,
   champStats,
+  mastery,
   runes,
   smurf,
   participant,
@@ -302,12 +324,23 @@ export function PlayerCard({
         </div>
       )}
 
-      {/* ── Row 3: Champion WR + games (ranked 7d) ── */}
+      {/* ── Row 3: Mastery + Champion WR + games (ranked 7d) ── */}
       {!loading && (
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-950/30 border border-blue-500/15">
+          {/* Mastery badge */}
+          {mastery && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border leading-tight shrink-0 ${masteryBadge(mastery.championLevel).cls}`}>
+              {masteryBadge(mastery.championLevel).text}
+              <span className="font-normal opacity-80">{formatPoints(mastery.championPoints)}</span>
+            </span>
+          )}
+
+          {/* Champ icon */}
           {champ && (
             <img src={champIcon(ddragon.version, currentChampion.icon || champ.image)} alt={currentChampion.name || champ.name} className="w-5 h-5 rounded" loading="lazy" />
           )}
+
+          {/* WR + games */}
           {champWR !== null && champGames > 0 ? (
             <>
               <span className={`text-sm font-bold ${wrColor(champWR)}`}>{champWR}%</span>
@@ -324,10 +357,12 @@ export function PlayerCard({
             <span className="text-[10px] text-gray-600">
               0p / {champStats.totalRankedGames} ranked (7d)
             </span>
-          ) : (
+          ) : !mastery ? (
             <span className="text-[10px] text-gray-600">
               {champStats.note === "NO_CHAMP_GAMES" ? "Sin partidas ranked (7d)" : "Champ WR: —"}
             </span>
+          ) : (
+            <span className="text-[10px] text-gray-600">Sin ranked recientes (7d)</span>
           )}
         </div>
       )}

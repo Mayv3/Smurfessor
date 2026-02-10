@@ -145,6 +145,11 @@ export interface PlayerCardChampStats {
   note?: string;
 }
 
+export interface PlayerCardMastery {
+  championLevel: number;
+  championPoints: number;
+}
+
 export interface PlayerCardSpell {
   id: number;
   name: string;
@@ -160,6 +165,7 @@ export interface PlayerCardData {
   ranked: PlayerCardRanked | null;
   currentChampion: PlayerCardChampion;
   champStats: PlayerCardChampStats;
+  mastery: PlayerCardMastery | null;
   runes: NormalizedRunes | null;
   spells: { spell1: PlayerCardSpell; spell2: PlayerCardSpell } | null;
   smurf: SmurfAssessment;

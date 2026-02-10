@@ -10,6 +10,7 @@ import {
   getAccountByPuuid,
   getSummonerByPuuid,
   getLeagueEntries,
+  getChampionMasteries,
 } from "../../lib/riot/endpoints";
 import { bootstrap } from "../../lib/ddragon/index";
 import { normalizeRunes } from "../../lib/ddragon/runes";
@@ -31,6 +32,7 @@ import type {
   PlayerCardRanked,
   PlayerCardChampion,
   PlayerCardChampStats,
+  PlayerCardMastery,
 } from "../../lib/riot/types";
 
 /* ── Request schema ──────────────────────────────────── */
@@ -100,6 +102,7 @@ function emptyCard(puuid: string, teamId: number, championId: number): PlayerCar
     ranked: null,
     currentChampion: { id: championId, name: "Unknown", icon: "" },
     champStats: emptyChampStats(championId, "FETCH_ERROR"),
+    mastery: null,
     runes: null,
     spells: null,
     smurf: computeSmurfAssessment({
@@ -165,11 +168,14 @@ export const POST: APIRoute = async ({ request }) => {
         new Promise<null>((r) => setTimeout(() => r(null), 10_000)),
       ]).catch(() => null);
 
-      const [accountResult, summoner, entries, champStatsRaw] = await Promise.all([
+      const masteryPromise = getChampionMasteries(p.puuid, platform).catch(() => null);
+
+      const [accountResult, summoner, entries, champStatsRaw, allMasteries] = await Promise.all([
         getAccountByPuuid(p.puuid, platform).catch(() => null),
         getSummonerByPuuid(p.puuid, platform),
         getLeagueEntries(p.puuid, platform),
         champStatsPromise,
+        masteryPromise,
       ]);
 
       const gameName = accountResult?.gameName ?? "";
@@ -191,6 +197,14 @@ export const POST: APIRoute = async ({ request }) => {
             note: champStatsRaw.note,
           }
         : emptyChampStats(p.championId, "FETCH_ERROR");
+
+      /* 3b) Champion mastery */
+      const champMastery: PlayerCardMastery | null = allMasteries
+        ? (() => {
+            const m = allMasteries.find((x) => x.championId === p.championId);
+            return m ? { championLevel: m.championLevel, championPoints: m.championPoints } : null;
+          })()
+        : null;
 
       /* 4) Champion info from DDragon */
       const champData = dd?.champions[String(p.championId)];
@@ -234,6 +248,7 @@ export const POST: APIRoute = async ({ request }) => {
         ranked,
         currentChampion,
         champStats,
+        mastery: champMastery,
         runes,
         spells: null,
         smurf,
@@ -352,6 +367,7 @@ function buildSmurfTestCards(
         sampleSizeOk: champSample >= 8,
         note: champSample === 0 ? "MOCK_DATA" : undefined,
       },
+      mastery: null,
       runes,
       spells: null,
       smurf: mock?.smurf ?? computeSmurfAssessment({
@@ -410,6 +426,7 @@ function buildLegacyTestCards(
         ? { id: p.championId, name: champData.name, icon: champData.image }
         : { id: p.championId, name: "Unknown", icon: "" },
       champStats: emptyChampStats(p.championId, "MOCK_DATA"),
+      mastery: null,
       runes,
       spells: null,
       smurf: computeSmurfAssessment({
