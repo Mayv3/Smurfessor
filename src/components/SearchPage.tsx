@@ -147,19 +147,21 @@ function SearchPageInner() {
     <div className="space-y-6">
       {/* ── Search bar ── */}
       <div className="max-w-xl mx-auto">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">Buscar invocador</h1>
-          <p className="text-gray-400 text-sm">Ingresá el nombre y tag del invocador para ver su partida en vivo</p>
+        <div className="text-center mb-8 animate-fadeIn">
+          <h1 className="text-3xl font-black text-white mb-2 tracking-tight">
+            Buscar invocador
+          </h1>
+          <p className="text-gray-500 text-sm">Ingresá el nombre y tag del invocador para ver su partida en vivo</p>
         </div>
 
         <form
           onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
-          className="flex gap-2"
+          className="flex gap-2 animate-slideUp"
         >
           <select
             value={platform}
             onChange={(e) => setPlatform(e.target.value)}
-            className="px-3 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors shrink-0 cursor-pointer"
+            className="px-3 py-3 bg-gray-800/60 border border-gray-700/50 rounded-xl text-white text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all shrink-0 cursor-pointer backdrop-blur-sm"
           >
             {REGIONS.map((r) => (
               <option key={r.value} value={r.value}>
@@ -167,28 +169,28 @@ function SearchPageInner() {
               </option>
             ))}
           </select>
-          <div className="relative flex-1">
-            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+          <div className="relative flex-1 group">
+            <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-600 group-focus-within:text-indigo-400 transition-colors" />
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Nombre#Tag (ej: HideOnBush#KR1)"
-              className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
+              className="w-full pl-10 pr-4 py-3 bg-gray-800/60 border border-gray-700/50 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 focus:bg-gray-800/80 transition-all backdrop-blur-sm"
               autoFocus
             />
           </div>
           <button
             type="submit"
             disabled={!input.trim()}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-semibold rounded-xl transition-colors shrink-0"
+            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-gray-700 disabled:to-gray-700 disabled:text-gray-500 text-white font-bold rounded-xl transition-all shrink-0 shadow-lg shadow-indigo-500/20 disabled:shadow-none hover:shadow-indigo-500/30 hover:-translate-y-0.5 disabled:translate-y-0"
           >
             Buscar
           </button>
         </form>
 
         {searchError && (
-          <p className="text-red-400 text-sm mt-2 text-center">{searchError}</p>
+          <p className="text-red-400 text-sm mt-3 text-center animate-fadeIn">{searchError}</p>
         )}
       </div>
 
@@ -209,7 +211,7 @@ function SearchPageInner() {
           <div className="text-center mt-6">
             <button
               onClick={() => setRetryCount((c) => c + 1)}
-              className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-white px-4 py-2 rounded-lg hover:bg-gray-800/50 transition-all"
             >
               <IconRefresh className="w-4 h-4" />
               Refrescar partida
@@ -227,7 +229,7 @@ function SearchPageInner() {
           <div className="text-center mt-4">
             <button
               onClick={() => setRetryCount((c) => c + 1)}
-              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
+              className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-white px-4 py-2 rounded-lg hover:bg-gray-800/50 transition-all"
             >
               <IconRefresh className="w-4 h-4" />
               Reintentar

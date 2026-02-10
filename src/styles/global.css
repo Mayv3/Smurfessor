@@ -4,6 +4,107 @@
 
 @layer base {
   html {
-    @apply bg-gray-900 text-white antialiased;
+    @apply bg-gray-950 text-white antialiased;
   }
+  body {
+    @apply bg-gray-950;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-gray-950; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-600; }
+}
+
+@layer utilities {
+  /* ── Keyframes ── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 6px 0 var(--glow-color, rgba(239,68,68,0.3)); }
+    50%      { box-shadow: 0 0 18px 4px var(--glow-color, rgba(239,68,68,0.5)); }
+  }
+  @keyframes borderGlow {
+    0%, 100% { border-color: rgba(239,68,68,0.35); }
+    50%      { border-color: rgba(239,68,68,0.75); }
+  }
+  @keyframes borderGlowYellow {
+    0%, 100% { border-color: rgba(234,179,8,0.25); }
+    50%      { border-color: rgba(234,179,8,0.65); }
+  }
+  @keyframes glitch {
+    0%, 100% { transform: translate(0); filter: none; }
+    20%      { transform: translate(-2px, 1px); filter: hue-rotate(90deg); }
+    40%      { transform: translate(2px, -1px); filter: hue-rotate(-90deg); }
+    60%      { transform: translate(-1px, -1px); }
+    80%      { transform: translate(1px, 2px); filter: hue-rotate(45deg); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+  @keyframes firePulse {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 2px rgba(251,146,60,0.4)); }
+    50%      { filter: brightness(1.3) drop-shadow(0 0 6px rgba(251,146,60,0.8)); }
+  }
+  @keyframes gradientShift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .animate-fadeIn       { animation: fadeIn 0.4s ease-out both; }
+  .animate-slideUp      { animation: slideUp 0.5s ease-out both; }
+  .animate-shimmer      {
+    background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  .animate-pulseGlow    { animation: pulseGlow 2s ease-in-out infinite; }
+  .animate-borderGlow   { animation: borderGlow 2s ease-in-out infinite; }
+  .animate-borderGlowYellow { animation: borderGlowYellow 2.5s ease-in-out infinite; }
+  .animate-glitch       { animation: glitch 4s ease-in-out infinite; }
+  .animate-float        { animation: float 3s ease-in-out infinite; }
+  .animate-firePulse    { animation: firePulse 1.5s ease-in-out infinite; }
+  .animate-gradientShift {
+    background-size: 200% 200%;
+    animation: gradientShift 4s ease infinite;
+  }
+
+  .delay-0 { animation-delay: 0ms; }
+  .delay-1 { animation-delay: 70ms; }
+  .delay-2 { animation-delay: 140ms; }
+  .delay-3 { animation-delay: 210ms; }
+  .delay-4 { animation-delay: 280ms; }
+
+  /* Subtle grid background */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* Tier glow CSS variables */
+  .tier-glow-iron        { --glow-color: rgba(156,163,175,0.25); }
+  .tier-glow-bronze      { --glow-color: rgba(217,119,6,0.25); }
+  .tier-glow-silver      { --glow-color: rgba(209,213,219,0.25); }
+  .tier-glow-gold        { --glow-color: rgba(234,179,8,0.3); }
+  .tier-glow-platinum    { --glow-color: rgba(94,234,212,0.25); }
+  .tier-glow-emerald     { --glow-color: rgba(52,211,153,0.3); }
+  .tier-glow-diamond     { --glow-color: rgba(147,197,253,0.3); }
+  .tier-glow-master      { --glow-color: rgba(192,132,252,0.35); }
+  .tier-glow-grandmaster { --glow-color: rgba(248,113,113,0.35); }
+  .tier-glow-challenger  { --glow-color: rgba(252,211,77,0.45); }
 }

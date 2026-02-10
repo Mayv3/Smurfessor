@@ -149,9 +149,14 @@ function TeamSection({
   cards: Map<string, PlayerCardDataFromAPI>;
   loading: boolean;
 }) {
-  const accentBorder = color === "blue" ? "border-blue-500" : "border-red-500";
   const accentText = color === "blue" ? "text-blue-400" : "text-red-400";
   const accentBg = color === "blue" ? "bg-blue-500" : "bg-red-500";
+  const gradientBg = color === "blue"
+    ? "bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent"
+    : "bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent";
+  const borderLine = color === "blue"
+    ? "bg-gradient-to-r from-blue-500/50 to-transparent"
+    : "bg-gradient-to-r from-red-500/50 to-transparent";
 
   /* Assign roles using champion + spell heuristics */
   const initialRoled = assignRoles(participants);
@@ -208,22 +213,25 @@ function TeamSection({
   const roled = order;
 
   return (
-    <div>
+    <div className="animate-fadeIn">
       {/* Team header */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className={`w-3 h-3 rounded-full ${accentBg}`} />
-        <h3 className={`text-base font-bold uppercase tracking-wider ${accentText}`}>
+      <div className={`flex items-center gap-3 mb-4 px-4 py-2.5 rounded-lg ${gradientBg}`}>
+        <div className="relative">
+          <span className={`w-3 h-3 rounded-full ${accentBg} block`} />
+          <span className={`absolute inset-0 w-3 h-3 rounded-full ${accentBg} animate-ping opacity-30`} />
+        </div>
+        <h3 className={`text-sm font-bold uppercase tracking-widest ${accentText}`}>
           {label}
         </h3>
-        <div className={`flex-1 h-px ${accentBorder} opacity-30`} />
+        <div className={`flex-1 h-px ${borderLine}`} />
       </div>
 
       {/* Role labels row */}
       <div className="grid grid-cols-5 gap-3 mb-2">
         {roled.map(({ role }, i) => (
-          <div key={`role-${i}`} className="flex items-center justify-center gap-1.5">
-            <RoleIcon role={role} size={16} />
-            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          <div key={`role-${i}`} className="flex items-center justify-center gap-1.5 py-1 rounded-md bg-gray-800/30 border border-gray-700/20 transition-colors hover:bg-gray-800/50">
+            <RoleIcon role={role} size={14} />
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
               {ROLE_META[role].short}
             </span>
           </div>
@@ -250,24 +258,33 @@ function TeamSection({
                 onDragOver={(e) => handleDragOver(e, i)}
                 onDrop={(e) => handleDrop(e, i)}
                 onDragEnd={handleDragEnd}
-                className="relative rounded-xl border border-purple-500/40 ring-1 ring-purple-500/20 bg-purple-950/20 backdrop-blur-sm p-4 flex flex-col items-center justify-center gap-3 w-full min-h-[280px] cursor-grab active:cursor-grabbing"
+                className={`relative rounded-xl border border-purple-500/30 overflow-hidden bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center gap-3 w-full min-h-[280px] cursor-grab active:cursor-grabbing animate-slideUp delay-${i} group`}
               >
+                {/* Animated background effect */}
+                <div className="absolute inset-0 bg-gradient-to-b from-purple-600/10 via-transparent to-purple-600/5 pointer-events-none" />
+                <div className="absolute inset-0 opacity-20 pointer-events-none" style={{backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(168,85,247,0.1) 2px, rgba(168,85,247,0.1) 4px)'}} />
+
                 {champImg ? (
-                  <img
-                    src={champImg}
-                    alt={champ?.name ?? "?"}
-                    className="w-20 h-20 rounded-xl ring-2 ring-purple-500/40"
-                    loading="lazy"
-                  />
+                  <div className="relative">
+                    <img
+                      src={champImg}
+                      alt={champ?.name ?? "?"}
+                      className="w-16 h-16 rounded-xl ring-2 ring-purple-500/30 shadow-lg shadow-purple-500/10 animate-glitch"
+                      style={{ animationDuration: '6s' }}
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 rounded-xl bg-purple-500/10 animate-pulse" />
+                  </div>
                 ) : (
-                  <div className="w-20 h-20 rounded-xl bg-gray-700 flex items-center justify-center text-gray-500 text-2xl">?</div>
+                  <div className="w-16 h-16 rounded-xl bg-gray-800 flex items-center justify-center text-gray-600 text-2xl ring-2 ring-purple-500/20">?</div>
                 )}
-                <div className="text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-purple-600/80 text-white text-[10px] font-bold uppercase tracking-wider border border-purple-400/50">
-                    🎭 Modo Streamer
+                <div className="text-center relative z-10">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-purple-500 text-white text-[10px] font-bold uppercase tracking-wider border border-purple-400/40 shadow-lg shadow-purple-500/20">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg>
+                    Modo Streamer
                   </span>
-                  <p className="text-[11px] text-purple-300/80 mt-2 leading-tight">
-                    Este putito tiene<br/>modo streamer
+                  <p className="text-[11px] text-purple-300/60 mt-2 leading-tight font-medium">
+                    Identidad oculta
                   </p>
                 </div>
               </div>
@@ -285,7 +302,7 @@ function TeamSection({
               onDragOver={(e) => handleDragOver(e, i)}
               onDrop={(e) => handleDrop(e, i)}
               onDragEnd={handleDragEnd}
-              className="cursor-grab active:cursor-grabbing"
+              className={`cursor-grab active:cursor-grabbing animate-slideUp delay-${i}`}
             >
             <PlayerCard
               puuid={puuid}
@@ -323,7 +340,14 @@ function TeamSection({
    MatchView — vertical: blue on top, red below, counters at bottom
    ══════════════════════════════════════════════════════════ */
 export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
-  const elapsed = Math.max(0, Math.floor((Date.now() - game.gameStartTime) / 1000 / 60));
+  /* Live timer — updates every minute */
+  const [elapsed, setElapsed] = useState(() => Math.max(0, Math.floor((Date.now() - game.gameStartTime) / 1000 / 60)));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - game.gameStartTime) / 1000 / 60)));
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [game.gameStartTime]);
   const [cards, setCards] = useState<Map<string, PlayerCardDataFromAPI>>(new Map());
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
@@ -380,15 +404,20 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
     <div className="flex justify-center w-full">
       <div className="space-y-6 min-w-[1400px]">
       {/* ── Header ── */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 mb-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm font-medium text-red-400 uppercase tracking-wider">En vivo</span>
+      <div className="text-center space-y-3 animate-fadeIn">
+        <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full bg-gradient-to-r from-red-500/15 via-red-500/10 to-red-500/15 border border-red-500/20 shadow-lg shadow-red-500/5">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+          </span>
+          <span className="text-sm font-bold text-red-400 uppercase tracking-widest">En vivo</span>
+          <span className="text-gray-500">·</span>
+          <span className="text-sm font-medium text-gray-300">{elapsed} min</span>
         </div>
         <h2 className="text-2xl font-bold text-white">
-          Partida {game.gameMode} — ~{elapsed} min
+          Partida {game.gameMode}
         </h2>
-        <p className="text-gray-500 text-sm">Game ID: {game.gameId}</p>
+        <p className="text-gray-600 text-xs">ID: {game.gameId}</p>
       </div>
 
       {/* ── Region warning ── */}
@@ -413,11 +442,19 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
         loading={loading}
       />
 
-      {/* ── Divider ── */}
-      <div className="flex items-center gap-3 py-2">
-        <div className="flex-1 h-px bg-gradient-to-r from-blue-500/30 to-transparent" />
-        <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">VS</span>
-        <div className="flex-1 h-px bg-gradient-to-l from-red-500/30 to-transparent" />
+      {/* ── VS Divider ── */}
+      <div className="flex items-center gap-4 py-3">
+        <div className="flex-1 h-px bg-gradient-to-r from-blue-500/40 via-blue-500/20 to-transparent" />
+        <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gray-800/60 border border-gray-700/40">
+          <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6.92 5H5l5 14h2L6.92 5zm0 0h2l5 14-2-4.5L9.62 8 6.92 5zm7.16 0h-2l-5 14h2l5-14zm0 0h2l3 3.5L16.62 12l2.3 3L21.58 19h-2l-5-14z" />
+          </svg>
+          <span className="text-xs font-black text-gray-400 uppercase tracking-[0.3em]">VS</span>
+          <svg className="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6.92 5H5l5 14h2L6.92 5zm0 0h2l5 14-2-4.5L9.62 8 6.92 5zm7.16 0h-2l-5 14h2l5-14zm0 0h2l3 3.5L16.62 12l2.3 3L21.58 19h-2l-5-14z" />
+          </svg>
+        </div>
+        <div className="flex-1 h-px bg-gradient-to-l from-red-500/40 via-red-500/20 to-transparent" />
       </div>
 
       {/* ── Red team (bottom) ── */}
@@ -431,56 +468,63 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
       />
 
       {/* ── Smurf counters (bottom) ── */}
-      <div className="border-t border-gray-700/50 pt-6">
+      <div className="border-t border-gray-800/60 pt-6 animate-fadeIn" style={{ animationDelay: '400ms' }}>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-gray-500 animate-pulse">
-              <div className="w-40 h-6 bg-gray-700 rounded" />
+            <div className="flex items-center gap-3 px-6 py-3 rounded-xl bg-gray-800/40 border border-gray-700/30">
+              <div className="w-4 h-4 rounded-full bg-gray-700 animate-pulse" />
+              <div className="w-36 h-5 bg-gray-700/60 rounded animate-shimmer" />
             </div>
           ) : totalConfirmed === 0 && totalPossible === 0 ? (
-            <div className="flex items-center gap-2 text-base text-gray-500">
-              <IconCheckCircle className="w-6 h-6 text-emerald-500" />
-              <span>Sin smurfs detectados en esta partida</span>
+            <div className="flex items-center gap-3 px-6 py-3 rounded-xl bg-emerald-950/20 border border-emerald-500/15">
+              <IconCheckCircle className="w-5 h-5 text-emerald-500" />
+              <span className="text-sm text-emerald-300/80 font-medium">Sin smurfs detectados en esta partida</span>
             </div>
           ) : (
             <>
               {/* Blue counter */}
-              <div data-testid="blue-smurf-counter" className="flex items-center gap-4 px-5 py-3 rounded-lg bg-blue-950/30 border border-blue-500/20">
-                <span className="text-sm font-bold text-blue-400 uppercase">Azul</span>
+              <div data-testid="blue-smurf-counter" className="flex items-center gap-4 px-5 py-3 rounded-xl bg-blue-950/20 border border-blue-500/15 shadow-lg shadow-blue-500/5">
+                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Azul</span>
                 {blueCount.confirmed > 0 && (
                   <span className="flex items-center gap-1.5 text-sm font-bold text-red-400">
                     <IconShield className="w-4 h-4" />
-                    Smurfs: {blueCount.confirmed}
+                    {blueCount.confirmed} smurf{blueCount.confirmed > 1 ? 's' : ''}
                   </span>
                 )}
                 {blueCount.possible > 0 && (
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-yellow-400">
                     <IconWarning className="w-4 h-4" />
-                    Posibles: {blueCount.possible}
+                    {blueCount.possible} posible{blueCount.possible > 1 ? 's' : ''}
                   </span>
                 )}
                 {blueCount.confirmed === 0 && blueCount.possible === 0 && (
-                  <span className="text-sm text-gray-500">Limpios</span>
+                  <span className="flex items-center gap-1.5 text-sm text-emerald-500/70">
+                    <IconCheckCircle className="w-3.5 h-3.5" />
+                    Limpios
+                  </span>
                 )}
               </div>
 
               {/* Red counter */}
-              <div data-testid="red-smurf-counter" className="flex items-center gap-4 px-5 py-3 rounded-lg bg-red-950/30 border border-red-500/20">
-                <span className="text-sm font-bold text-red-400 uppercase">Rojo</span>
+              <div data-testid="red-smurf-counter" className="flex items-center gap-4 px-5 py-3 rounded-xl bg-red-950/20 border border-red-500/15 shadow-lg shadow-red-500/5">
+                <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Rojo</span>
                 {redCount.confirmed > 0 && (
                   <span className="flex items-center gap-1.5 text-sm font-bold text-red-400">
                     <IconShield className="w-4 h-4" />
-                    Smurfs: {redCount.confirmed}
+                    {redCount.confirmed} smurf{redCount.confirmed > 1 ? 's' : ''}
                   </span>
                 )}
                 {redCount.possible > 0 && (
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-yellow-400">
                     <IconWarning className="w-4 h-4" />
-                    Posibles: {redCount.possible}
+                    {redCount.possible} posible{redCount.possible > 1 ? 's' : ''}
                   </span>
                 )}
                 {redCount.confirmed === 0 && redCount.possible === 0 && (
-                  <span className="text-sm text-gray-500">Limpios</span>
+                  <span className="flex items-center gap-1.5 text-sm text-emerald-500/70">
+                    <IconCheckCircle className="w-3.5 h-3.5" />
+                    Limpios
+                  </span>
                 )}
               </div>
             </>

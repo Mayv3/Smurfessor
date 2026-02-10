@@ -17,26 +17,28 @@ import { ApiKeyBanner } from "../components/ApiKeyBanner";
     <meta name="description" content="Smurfessor — Dashboard de cuentas de League of Legends" />
     <title>{title} | Smurfessor</title>
   </head>
-  <body class="bg-gray-900 min-h-screen flex flex-col">
-    <header class="bg-gray-800/80 backdrop-blur border-b border-gray-700 sticky top-0 z-50">
+  <body class="bg-gray-950 min-h-screen flex flex-col bg-grid">
+    <header class="bg-gray-900/80 backdrop-blur-xl border-b border-gray-800/50 sticky top-0 z-50">
       <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
         <a
           href="/"
-          class="text-xl font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+          class="group flex items-center gap-2 text-xl font-black transition-all"
         >
-          🎮 Smurfessor
+          <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent group-hover:from-indigo-300 group-hover:to-purple-300 transition-all">
+            Smurfessor
+          </span>
+          <span class="text-[10px] text-gray-600 font-medium uppercase tracking-wider hidden sm:inline border border-gray-700/50 px-1.5 py-0.5 rounded">beta</span>
         </a>
-        <span class="text-xs text-gray-500 hidden sm:inline">Porofessor-lite</span>
         <div class="ml-auto">
           <a
             href="/search"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-400 hover:text-white bg-gray-700/50 hover:bg-gray-700 border border-gray-600 rounded-lg transition-colors"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm text-gray-400 hover:text-white bg-gray-800/40 hover:bg-gray-800/60 border border-gray-700/40 hover:border-gray-600/60 rounded-xl transition-all backdrop-blur-sm"
           >
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <path d="M21 21l-4.35-4.35"></path>
             </svg>
-            Buscar
+            <span class="hidden sm:inline">Buscar</span>
           </a>
         </div>
       </div>
@@ -47,7 +49,7 @@ import { ApiKeyBanner } from "../components/ApiKeyBanner";
       <slot />
     </main>
 
-    <footer class="text-center text-gray-600 text-xs py-4 border-t border-gray-800">
+    <footer class="text-center text-gray-700 text-xs py-4 border-t border-gray-800/50">
       Smurfessor — Proyecto no oficial. No afiliado a Riot Games.
     </footer>
   </body>
