@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { PlayerCard } from "./PlayerCard";
 import { IconShield, IconWarning, IconCheckCircle } from "./ui/Icons";
+import { assignRoles } from "../lib/roles/assign";
+import type { Role, RoledParticipant } from "../lib/roles/assign";
 import type { SmurfAssessment } from "../lib/smurf/rules";
 import type { NormalizedRunes } from "../lib/ddragon/runes";
 
@@ -72,6 +74,54 @@ interface Props {
 /* ── Smurf counter ───────────────────────────────────── */
 interface SmurfCount { confirmed: number; possible: number; }
 
+/* ── Official LoL role icons (CommunityDragon champ-select SVGs) ── */
+const ROLE_META: Record<Role, { label: string; short: string }> = {
+  TOP:     { label: "Top",     short: "TOP" },
+  JUNGLE:  { label: "Jungla",  short: "JG" },
+  MID:     { label: "Mid",     short: "MID" },
+  ADC:     { label: "ADC",     short: "ADC" },
+  SUPPORT: { label: "Support", short: "SUP" },
+};
+
+function RoleIcon({ role, size = 20 }: { role: Role; size?: number }) {
+  const s = { width: size, height: size };
+  switch (role) {
+    case "TOP":
+      return (
+        <svg style={s} viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+          <path opacity="0.5" fill="#785a28" fillRule="evenodd" d="M21,14H14v7h7V14Zm5-3V26L11.014,26l-4,4H30V7.016Z"/>
+          <polygon fill="#c8aa6e" points="4 4 4.003 28.045 9 23 9 9 23 9 28.045 4.003 4 4"/>
+        </svg>
+      );
+    case "JUNGLE":
+      return (
+        <svg style={s} viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#c8aa6e" fillRule="evenodd" d="M25,3c-2.128,3.3-5.147,6.851-6.966,11.469A42.373,42.373,0,0,1,20,20a27.7,27.7,0,0,1,1-3C21,12.023,22.856,8.277,25,3ZM13,20c-1.488-4.487-4.76-6.966-9-9,3.868,3.136,4.422,7.52,5,12l3.743,3.312C14.215,27.917,16.527,30.451,17,31c4.555-9.445-3.366-20.8-8-28C11.67,9.573,13.717,13.342,13,20Zm8,5a15.271,15.271,0,0,1,0,2l4-4c0.578-4.48,1.132-8.864,5-12C24.712,13.537,22.134,18.854,21,25Z"/>
+        </svg>
+      );
+    case "MID":
+      return (
+        <svg style={s} viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+          <path opacity="0.5" fill="#785a28" fillRule="evenodd" d="M30,12.968l-4.008,4L26,26H17l-4,4H30ZM16.979,8L21,4H4V20.977L8,17,8,8h8.981Z"/>
+          <polygon fill="#c8aa6e" points="25 4 4 25 4 30 9 30 30 9 30 4 25 4"/>
+        </svg>
+      );
+    case "ADC":
+      return (
+        <svg style={s} viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+          <path opacity="0.5" fill="#785a28" fillRule="evenodd" d="M13,20h7V13H13v7ZM4,4V26.984l3.955-4L8,8,22.986,8l4-4H4Z"/>
+          <polygon fill="#c8aa6e" points="29.997 5.955 25 11 25 25 11 25 5.955 29.997 30 30 29.997 5.955"/>
+        </svg>
+      );
+    case "SUPPORT":
+      return (
+        <svg style={s} viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#c8aa6e" fillRule="evenodd" d="M26,13c3.535,0,8-4,8-4H23l-3,3,2,7,5-2-3-4h2ZM22,5L20.827,3H13.062L12,5l5,6Zm-5,9-1-1L13,28l4,3,4-3L18,13ZM11,9H0s4.465,4,8,4h2L7,17l5,2,2-7Z"/>
+        </svg>
+      );
+  }
+}
+
 function countSmurfs(puuids: string[], map: Map<string, PlayerCardDataFromAPI>): SmurfCount {
   let confirmed = 0, possible = 0;
   for (const id of puuids) {
@@ -103,6 +153,60 @@ function TeamSection({
   const accentText = color === "blue" ? "text-blue-400" : "text-red-400";
   const accentBg = color === "blue" ? "bg-blue-500" : "bg-red-500";
 
+  /* Assign roles using champion + spell heuristics */
+  const initialRoled = assignRoles(participants);
+
+  /* ── Drag & drop state ── */
+  const [order, setOrder] = useState<RoledParticipant<Participant>[]>(initialRoled);
+  const dragIdx = useRef<number | null>(null);
+  const dragOverIdx = useRef<number | null>(null);
+
+  /* Sync when participants change (new game) */
+  const prevGameKey = useRef("");
+  const gameKey = participants.map(p => p.championId).join("-");
+  if (gameKey !== prevGameKey.current) {
+    prevGameKey.current = gameKey;
+    // Reset order to match new assignment — this runs during render (safe for ref sync)
+    if (order.length !== initialRoled.length || order.some((o, i) => o.data.championId !== initialRoled[i].data.championId)) {
+      setOrder(initialRoled);
+    }
+  }
+
+  const handleDragStart = useCallback((idx: number) => {
+    dragIdx.current = idx;
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    dragOverIdx.current = idx;
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    const fromIdx = dragIdx.current;
+    if (fromIdx === null || fromIdx === dropIdx) return;
+    setOrder(prev => {
+      const next = [...prev];
+      // Swap the two cards, keeping each slot's role label
+      const fromRole = next[fromIdx].role;
+      const toRole = next[dropIdx].role;
+      const fromData = next[fromIdx].data;
+      const toData = next[dropIdx].data;
+      next[fromIdx] = { role: fromRole, data: toData };
+      next[dropIdx] = { role: toRole, data: fromData };
+      return next;
+    });
+    dragIdx.current = null;
+    dragOverIdx.current = null;
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    dragIdx.current = null;
+    dragOverIdx.current = null;
+  }, []);
+
+  const roled = order;
+
   return (
     <div>
       {/* Team header */}
@@ -114,9 +218,21 @@ function TeamSection({
         <div className={`flex-1 h-px ${accentBorder} opacity-30`} />
       </div>
 
-      {/* 5 cards in a responsive grid */}
+      {/* Role labels row */}
+      <div className="grid grid-cols-5 gap-3 mb-2">
+        {roled.map(({ role }, i) => (
+          <div key={`role-${i}`} className="flex items-center justify-center gap-1.5">
+            <RoleIcon role={role} size={16} />
+            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {ROLE_META[role].short}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* 5 cards in a responsive grid — draggable */}
       <div className="grid grid-cols-5 gap-3">
-        {participants.map((p, i) => {
+        {roled.map(({ role, data: p }, i) => {
           const isStreamer = !p.puuid || p.puuid.length === 0;
 
           /* ── Streamer mode card ── */
@@ -128,8 +244,13 @@ function TeamSection({
 
             return (
               <div
-                key={`streamer-${i}`}
-                className="relative rounded-xl border border-purple-500/40 ring-1 ring-purple-500/20 bg-purple-950/20 backdrop-blur-sm p-4 flex flex-col items-center justify-center gap-3 w-full min-h-[280px]"
+                key={`streamer-${role}-${i}`}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDrop={(e) => handleDrop(e, i)}
+                onDragEnd={handleDragEnd}
+                className="relative rounded-xl border border-purple-500/40 ring-1 ring-purple-500/20 bg-purple-950/20 backdrop-blur-sm p-4 flex flex-col items-center justify-center gap-3 w-full min-h-[280px] cursor-grab active:cursor-grabbing"
               >
                 {champImg ? (
                   <img
@@ -157,8 +278,16 @@ function TeamSection({
           const card = cards.get(puuid);
           const champ = ddragon.champions[String(p.championId)];
           return (
-            <PlayerCard
+            <div
               key={puuid}
+              draggable
+              onDragStart={() => handleDragStart(i)}
+              onDragOver={(e) => handleDragOver(e, i)}
+              onDrop={(e) => handleDrop(e, i)}
+              onDragEnd={handleDragEnd}
+              className="cursor-grab active:cursor-grabbing"
+            >
+            <PlayerCard
               puuid={puuid}
               teamId={p.teamId}
               riotId={card?.riotId ?? { gameName: p.riotId?.split("#")?.[0] ?? "Unknown", tagLine: p.riotId?.split("#")?.[1] ?? "???" }}
@@ -182,6 +311,7 @@ function TeamSection({
               ddragon={ddragon}
               loading={loading && !card}
             />
+            </div>
           );
         })}
       </div>
