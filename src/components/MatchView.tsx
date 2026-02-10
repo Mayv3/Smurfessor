@@ -6,7 +6,7 @@ import type { NormalizedRunes } from "../lib/ddragon/runes";
 
 /* ── Types ────────────────────────────────────────────── */
 interface Participant {
-  puuid: string;
+  puuid: string | null;
   riotId: string;
   championId: number;
   spell1Id: number;
@@ -115,13 +115,50 @@ function TeamSection({
 
       {/* 5 cards in a responsive grid */}
       <div className="grid grid-cols-5 gap-3">
-        {participants.map((p) => {
-          const card = cards.get(p.puuid);
+        {participants.map((p, i) => {
+          const isStreamer = !p.puuid || p.puuid.length === 0;
+
+          /* ── Streamer mode card ── */
+          if (isStreamer) {
+            const champ = ddragon.champions[String(p.championId)];
+            const champImg = champ
+              ? `https://ddragon.leagueoflegends.com/cdn/${ddragon.version}/img/champion/${champ.image}`
+              : null;
+
+            return (
+              <div
+                key={`streamer-${i}`}
+                className="relative rounded-xl border border-purple-500/40 ring-1 ring-purple-500/20 bg-purple-950/20 backdrop-blur-sm p-4 flex flex-col items-center justify-center gap-3 w-full min-h-[280px]"
+              >
+                {champImg ? (
+                  <img
+                    src={champImg}
+                    alt={champ?.name ?? "?"}
+                    className="w-20 h-20 rounded-xl ring-2 ring-purple-500/40"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-gray-700 flex items-center justify-center text-gray-500 text-2xl">?</div>
+                )}
+                <div className="text-center">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-purple-600/80 text-white text-[10px] font-bold uppercase tracking-wider border border-purple-400/50">
+                    🎭 Modo Streamer
+                  </span>
+                  <p className="text-[11px] text-purple-300/80 mt-2 leading-tight">
+                    Este putito tiene<br/>modo streamer
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          const puuid = p.puuid!; // guaranteed non-null after isStreamer guard
+          const card = cards.get(puuid);
           const champ = ddragon.champions[String(p.championId)];
           return (
             <PlayerCard
-              key={p.puuid}
-              puuid={p.puuid}
+              key={puuid}
+              puuid={puuid}
               teamId={p.teamId}
               riotId={card?.riotId ?? { gameName: p.riotId?.split("#")?.[0] ?? "Unknown", tagLine: p.riotId?.split("#")?.[1] ?? "???" }}
               summonerLevel={card?.summonerLevel ?? 0}
@@ -167,18 +204,25 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
       setLoading(true);
       setWarning(null);
       try {
+        /* Filter out participants with no valid puuid (bots, private profiles) */
+        const validPlayers = allParticipants
+          .filter((p) => p.puuid && p.puuid.length > 0)
+          .map((p) => ({
+            puuid: p.puuid,
+            teamId: p.teamId,
+            championId: p.championId,
+            perks: p.perks ?? undefined,
+          }));
+
+        if (validPlayers.length === 0) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+
         const res = await fetch("/api/player-cards", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            platform,
-            players: allParticipants.map((p) => ({
-              puuid: p.puuid,
-              teamId: p.teamId,
-              championId: p.championId,
-              perks: p.perks ?? undefined,
-            })),
-          }),
+          body: JSON.stringify({ platform, players: validPlayers }),
         });
         const json = await res.json();
         if (!cancelled && json.ok) {
@@ -195,8 +239,8 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.gameId, platform]);
 
-  const blueCount = countSmurfs(game.teams.blue.map((p) => p.puuid), cards);
-  const redCount = countSmurfs(game.teams.red.map((p) => p.puuid), cards);
+  const blueCount = countSmurfs(game.teams.blue.map((p) => p.puuid).filter((id): id is string => !!id), cards);
+  const redCount = countSmurfs(game.teams.red.map((p) => p.puuid).filter((id): id is string => !!id), cards);
   const totalConfirmed = blueCount.confirmed + redCount.confirmed;
   const totalPossible = blueCount.possible + redCount.possible;
 

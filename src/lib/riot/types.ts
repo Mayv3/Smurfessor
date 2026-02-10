@@ -73,7 +73,7 @@ export interface SpectatorGame {
 /* ── Normalized shapes for the UI ────────────────────── */
 
 export interface NormalizedParticipant {
-  puuid: string;
+  puuid: string | null;
   riotId: string;
   championId: number;
   spell1Id: number;
