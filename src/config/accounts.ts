@@ -13,6 +13,18 @@ export const ACCOUNTS: TrackedAccount[] = [
     label: "🧪 Test",
   },
   {
+    key: "tejon-cordobes",
+    riotId: { gameName: "tejon cordobes", tagLine: "1998" },
+    platform: "LA2",
+    label: "Negro Bobi 🐒🍌",
+  },
+  {
+    key: "odioalossmurfs",
+    riotId: { gameName: "OdioALosSmurfs", tagLine: "HATE" },
+    platform: "LA2",
+    label: "Odio a los smurfs 🧟‍♂",
+  },
+  {
     key: "smurf-test",
     riotId: { gameName: "SMURF TEST", tagLine: "E2E" },
     platform: "LA2",
@@ -87,6 +99,7 @@ export const ACCOUNTS: TrackedAccount[] = [
     key: "rt-nashor",
     riotId: { gameName: "RT Nashor", tagLine: "LAS" },
     platform: "LA2",
+    label: "El gordo Nashor 🥖🍞🥐",
   },
   {
     key: "anda-a-banarte",
