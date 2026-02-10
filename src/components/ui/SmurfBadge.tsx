@@ -8,7 +8,7 @@ interface Props {
   reasons: string[];
 }
 
-export function SmurfBadge({ severity, label, probability, reasons }: Props) {
+export function SmurfBadge({ severity, label, probability, reasons }: Readonly<Props>) {
   if (severity === "none") return null;
 
   const isConfirmed = severity === "confirmed";
@@ -43,8 +43,8 @@ export function SmurfBadge({ severity, label, probability, reasons }: Props) {
             {isConfirmed ? "Smurf detectado" : "Posible smurf"}
           </div>
           <div className="space-y-1.5">
-            {reasons.map((r, i) => (
-              <div key={i} className="flex items-start gap-2.5">
+            {reasons.map((r) => (
+              <div key={r} className="flex items-start gap-2.5">
                 <span className={`shrink-0 mt-1 w-1.5 h-1.5 rounded-full ${isConfirmed ? 'bg-red-500' : 'bg-yellow-500'}`} />
                 <span className="text-gray-300/90 text-xs leading-relaxed">{r}</span>
               </div>

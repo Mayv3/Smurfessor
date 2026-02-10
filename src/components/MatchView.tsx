@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useReducer, useRef, useCallback } from "react";
 import { PlayerCard } from "./PlayerCard";
 import { IconShield, IconWarning, IconCheckCircle } from "./ui/Icons";
 import { assignRoles } from "../lib/roles/assign";
 import type { Role, RoledParticipant } from "../lib/roles/assign";
 import type { SmurfAssessment } from "../lib/smurf/rules";
 import type { NormalizedRunes } from "../lib/ddragon/runes";
+import type { PlayerInsights } from "../lib/insights/types";
 
 /* ── Types ────────────────────────────────────────────── */
 interface Participant {
@@ -51,6 +52,10 @@ interface PlayerCardDataFromAPI {
     totalRankedGames: number;
     gamesWithChamp: number | null;
     winrateWithChamp: number | null;
+    kdaWithChamp: number | null;
+    avgKills: number | null;
+    avgDeaths: number | null;
+    avgAssists: number | null;
     sampleSizeOk: boolean;
     note?: string;
   };
@@ -58,6 +63,7 @@ interface PlayerCardDataFromAPI {
   runes: NormalizedRunes | null;
   spells: { spell1: { id: number; name: string; icon: string }; spell2: { id: number; name: string; icon: string } } | null;
   smurf: SmurfAssessment;
+  insights: PlayerInsights | null;
 }
 
 interface Props {
@@ -83,7 +89,7 @@ const ROLE_META: Record<Role, { label: string; short: string }> = {
   SUPPORT: { label: "Support", short: "SUP" },
 };
 
-function RoleIcon({ role, size = 20 }: { role: Role; size?: number }) {
+function RoleIcon({ role, size = 20 }: Readonly<{ role: Role; size?: number }>) {
   const s = { width: size, height: size };
   switch (role) {
     case "TOP":
@@ -133,6 +139,86 @@ function countSmurfs(puuids: string[], map: Map<string, PlayerCardDataFromAPI>):
   return { confirmed, possible };
 }
 
+/* ── Insight counters per team ───────────────────────── */
+interface InsightCounts {
+  smurfConfirmed: number;
+  smurfProbable: number;
+  otp: number;
+  eloQuemado: number;
+  lowWr: number;
+  carried: number;
+  tilted: number;
+}
+
+function accumulateInsights(c: InsightCounts, card: PlayerCardDataFromAPI): void {
+  const s = card.insights!.summary;
+  if (s.smurf.confirmed) c.smurfConfirmed++;
+  else if (s.smurf.probable) c.smurfProbable++;
+  if (s.otp.score >= 50) c.otp++;
+  if (s.eloQuemado.score >= 50) c.eloQuemado++;
+  if (s.lowWr.score >= 50) c.lowWr++;
+  if (s.carried.score >= 50) c.carried++;
+  if (s.tilted.score >= 50) c.tilted++;
+}
+
+function countInsights(puuids: string[], map: Map<string, PlayerCardDataFromAPI>): InsightCounts {
+  const c: InsightCounts = { smurfConfirmed: 0, smurfProbable: 0, otp: 0, eloQuemado: 0, lowWr: 0, carried: 0, tilted: 0 };
+  for (const id of puuids) {
+    const card = map.get(id);
+    if (card?.insights) accumulateInsights(c, card);
+  }
+  return c;
+}
+
+/* ── Team insight pills (compact counters) ───────────── */
+const INSIGHT_PILL_DEFS = [
+  { key: "smurfConfirmed" as const, label: "Smurf", cls: "text-red-400 font-bold" },
+  { key: "smurfProbable" as const, label: "Smurf?", cls: "text-yellow-400 font-semibold" },
+  { key: "otp" as const, label: "OTP", cls: "text-amber-400 font-semibold" },
+  { key: "eloQuemado" as const, label: "Quemado", cls: "text-orange-400 font-semibold" },
+  { key: "lowWr" as const, label: "Low WR", cls: "text-stone-400 font-semibold" },
+  { key: "carried" as const, label: "Carried", cls: "text-purple-400 font-semibold" },
+  { key: "tilted" as const, label: "Tilted", cls: "text-rose-400 font-semibold" },
+];
+
+function CleanPills() {
+  return (
+    <span className="flex items-center gap-1.5 text-sm text-emerald-500/70">
+      <IconCheckCircle className="w-3.5 h-3.5" />
+      Limpios
+    </span>
+  );
+}
+
+function TeamInsightPills({ counts, fallback }: Readonly<{ counts: InsightCounts; fallback: SmurfCount }>) {
+  const pills = INSIGHT_PILL_DEFS.filter((d) => counts[d.key] > 0);
+
+  if (pills.length > 0) {
+    return <>{pills.map((p) => <span key={p.label} className={`text-sm ${p.cls}`}>{counts[p.key]} {p.label}</span>)}</>;
+  }
+
+  if (fallback.confirmed > 0 || fallback.possible > 0) {
+    return (
+      <>
+        {fallback.confirmed > 0 && (
+          <span className="flex items-center gap-1.5 text-sm font-bold text-red-400">
+            <IconShield className="w-4 h-4" />
+            {fallback.confirmed} smurf{fallback.confirmed > 1 ? 's' : ''}
+          </span>
+        )}
+        {fallback.possible > 0 && (
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-yellow-400">
+            <IconWarning className="w-4 h-4" />
+            {fallback.possible} posible{fallback.possible > 1 ? 's' : ''}
+          </span>
+        )}
+      </>
+    );
+  }
+
+  return <CleanPills />;
+}
+
 /* ── Team section ────────────────────────────────────── */
 function TeamSection({
   label,
@@ -141,14 +227,14 @@ function TeamSection({
   ddragon,
   cards,
   loading,
-}: {
+}: Readonly<{
   label: string;
   color: "blue" | "red";
   participants: Participant[];
   ddragon: DDragon;
   cards: Map<string, PlayerCardDataFromAPI>;
   loading: boolean;
-}) {
+}>) {
   const accentText = color === "blue" ? "text-blue-400" : "text-red-400";
   const accentBg = color === "blue" ? "bg-blue-500" : "bg-red-500";
   const gradientBg = color === "blue"
@@ -228,8 +314,8 @@ function TeamSection({
 
       {/* Role labels row */}
       <div className="grid grid-cols-5 gap-3 mb-2">
-        {roled.map(({ role }, i) => (
-          <div key={`role-${i}`} className="flex items-center justify-center gap-1.5 py-1 rounded-md bg-gray-800/30 border border-gray-700/20 transition-colors hover:bg-gray-800/50">
+        {roled.map(({ role }) => (
+          <div key={`role-${role}`} className="flex items-center justify-center gap-1.5 py-1 rounded-md bg-gray-800/30 border border-gray-700/20 transition-colors hover:bg-gray-800/50">
             <RoleIcon role={role} size={14} />
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
               {ROLE_META[role].short}
@@ -239,7 +325,7 @@ function TeamSection({
       </div>
 
       {/* 5 cards in a responsive grid — draggable */}
-      <div className="grid grid-cols-5 gap-3">
+      <ul className="grid grid-cols-5 gap-3 list-none p-0 m-0">
         {roled.map(({ role, data: p }, i) => {
           const isStreamer = !p.puuid || p.puuid.length === 0;
 
@@ -251,7 +337,7 @@ function TeamSection({
               : null;
 
             return (
-              <div
+              <li
                 key={`streamer-${role}-${i}`}
                 draggable
                 onDragStart={() => handleDragStart(i)}
@@ -287,7 +373,7 @@ function TeamSection({
                     Identidad oculta
                   </p>
                 </div>
-              </div>
+              </li>
             );
           }
 
@@ -295,7 +381,7 @@ function TeamSection({
           const card = cards.get(puuid);
           const champ = ddragon.champions[String(p.championId)];
           return (
-            <div
+            <li
               key={puuid}
               draggable
               onDragStart={() => handleDragStart(i)}
@@ -312,11 +398,12 @@ function TeamSection({
                 profileIconId={card?.profileIconId ?? 0}
                 ranked={card?.ranked ?? null}
                 currentChampion={card?.currentChampion ?? { id: p.championId, name: champ?.name ?? "Unknown", icon: champ?.image ?? "" }}
-                champStats={card?.champStats ?? { recentWindow: "7d", totalRankedGames: 0, gamesWithChamp: null, winrateWithChamp: null, sampleSizeOk: false }}
+                champStats={card?.champStats ?? { recentWindow: "7d", totalRankedGames: 0, gamesWithChamp: null, winrateWithChamp: null, kdaWithChamp: null, avgKills: null, avgDeaths: null, avgAssists: null, sampleSizeOk: false }}
                 mastery={card?.mastery ?? null}
                 runes={card?.runes ?? null}
                 spells={card?.spells ?? null}
                 smurf={card?.smurf ?? { severity: "none" as const, label: "No smurf", probability: 0, reasons: [] }}
+                insights={card?.insights ?? null}
                 participant={{
                   championId: p.championId,
                   spell1Id: p.spell1Id,
@@ -328,26 +415,52 @@ function TeamSection({
                 ddragon={ddragon}
                 loading={loading && !card}
               />
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </div>
+  );
+}
+
+/* ── Match Alerts (extracted to avoid nested ternary) ── */
+function MatchAlerts({ hasAlerts, blueInsights, redInsights, blueCount, redCount }: Readonly<{
+  hasAlerts: boolean;
+  blueInsights: InsightCounts; redInsights: InsightCounts;
+  blueCount: SmurfCount; redCount: SmurfCount;
+}>) {
+  if (!hasAlerts) {
+    return (
+      <div className="flex items-center gap-3 px-6 py-3 rounded-xl bg-emerald-950/20 border border-emerald-500/15">
+        <IconCheckCircle className="w-5 h-5 text-emerald-500" />
+        <span className="text-sm text-emerald-300/80 font-medium">Sin alertas detectadas en esta partida</span>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div data-testid="blue-smurf-counter" className="flex flex-wrap items-center gap-3 px-5 py-3 rounded-xl bg-blue-950/20 border border-blue-500/15 shadow-lg shadow-blue-500/5">
+        <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Azul</span>
+        <TeamInsightPills counts={blueInsights} fallback={blueCount} />
+      </div>
+      <div data-testid="red-smurf-counter" className="flex flex-wrap items-center gap-3 px-5 py-3 rounded-xl bg-red-950/20 border border-red-500/15 shadow-lg shadow-red-500/5">
+        <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Rojo</span>
+        <TeamInsightPills counts={redInsights} fallback={redCount} />
+      </div>
+    </>
   );
 }
 
 /* ══════════════════════════════════════════════════════════
    MatchView — vertical: blue on top, red below, counters at bottom
    ══════════════════════════════════════════════════════════ */
-export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
-  /* Live timer — updates every minute */
-  const [elapsed, setElapsed] = useState(() => Math.max(0, Math.floor((Date.now() - game.gameStartTime) / 1000 / 60)));
+export function MatchView({ game, ddragon, platform = "LA2" }: Readonly<Props>) {
+  /* Live timer — force re-render every minute to keep computed times fresh */
+  const [, tick] = useReducer((c: number) => c + 1, 0);
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(Math.max(0, Math.floor((Date.now() - game.gameStartTime) / 1000 / 60)));
-    }, 60_000);
+    const interval = setInterval(tick, 60_000);
     return () => clearInterval(interval);
-  }, [game.gameStartTime]);
+  }, []);
   const [cards, setCards] = useState<Map<string, PlayerCardDataFromAPI>>(new Map());
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
@@ -400,6 +513,14 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
   const totalConfirmed = blueCount.confirmed + redCount.confirmed;
   const totalPossible = blueCount.possible + redCount.possible;
 
+  /* Insight-based counters */
+  const blueInsights = countInsights(game.teams.blue.map((p) => p.puuid).filter((id): id is string => !!id), cards);
+  const redInsights = countInsights(game.teams.red.map((p) => p.puuid).filter((id): id is string => !!id), cards);
+  const hasAnyInsight = !loading && (
+    blueInsights.smurfConfirmed + blueInsights.smurfProbable + blueInsights.otp + blueInsights.eloQuemado + blueInsights.lowWr + blueInsights.carried + blueInsights.tilted +
+    redInsights.smurfConfirmed + redInsights.smurfProbable + redInsights.otp + redInsights.eloQuemado + redInsights.lowWr + redInsights.carried + redInsights.tilted
+  ) > 0;
+
   return (
     <div className="flex justify-center w-full">
       <div className="space-y-6 min-w-[1400px]">
@@ -413,59 +534,12 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Props) {
                   <div className="w-4 h-4 rounded-full bg-gray-700 animate-pulse" />
                   <div className="w-36 h-5 bg-gray-700/60 rounded animate-shimmer" />
                 </div>
-              ) : totalConfirmed === 0 && totalPossible === 0 ? (
-                <div className="flex items-center gap-3 px-6 py-3 rounded-xl bg-emerald-950/20 border border-emerald-500/15">
-                  <IconCheckCircle className="w-5 h-5 text-emerald-500" />
-                  <span className="text-sm text-emerald-300/80 font-medium">Sin smurfs detectados en esta partida</span>
-                </div>
               ) : (
-                <>
-                  {/* Blue counter */}
-                  <div data-testid="blue-smurf-counter" className="flex items-center gap-4 px-5 py-3 rounded-xl bg-blue-950/20 border border-blue-500/15 shadow-lg shadow-blue-500/5">
-                    <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Azul</span>
-                    {blueCount.confirmed > 0 && (
-                      <span className="flex items-center gap-1.5 text-sm font-bold text-red-400">
-                        <IconShield className="w-4 h-4" />
-                        {blueCount.confirmed} smurf{blueCount.confirmed > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {blueCount.possible > 0 && (
-                      <span className="flex items-center gap-1.5 text-sm font-semibold text-yellow-400">
-                        <IconWarning className="w-4 h-4" />
-                        {blueCount.possible} posible{blueCount.possible > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {blueCount.confirmed === 0 && blueCount.possible === 0 && (
-                      <span className="flex items-center gap-1.5 text-sm text-emerald-500/70">
-                        <IconCheckCircle className="w-3.5 h-3.5" />
-                        Limpios
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Red counter */}
-                  <div data-testid="red-smurf-counter" className="flex items-center gap-4 px-5 py-3 rounded-xl bg-red-950/20 border border-red-500/15 shadow-lg shadow-red-500/5">
-                    <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Rojo</span>
-                    {redCount.confirmed > 0 && (
-                      <span className="flex items-center gap-1.5 text-sm font-bold text-red-400">
-                        <IconShield className="w-4 h-4" />
-                        {redCount.confirmed} smurf{redCount.confirmed > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {redCount.possible > 0 && (
-                      <span className="flex items-center gap-1.5 text-sm font-semibold text-yellow-400">
-                        <IconWarning className="w-4 h-4" />
-                        {redCount.possible} posible{redCount.possible > 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {redCount.confirmed === 0 && redCount.possible === 0 && (
-                      <span className="flex items-center gap-1.5 text-sm text-emerald-500/70">
-                        <IconCheckCircle className="w-3.5 h-3.5" />
-                        Limpios
-                      </span>
-                    )}
-                  </div>
-                </>
+                <MatchAlerts
+                  hasAlerts={totalConfirmed > 0 || totalPossible > 0 || hasAnyInsight}
+                  blueInsights={blueInsights} redInsights={redInsights}
+                  blueCount={blueCount} redCount={redCount}
+                />
               )}
             </div>
           </div>

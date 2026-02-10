@@ -55,6 +55,90 @@ interface PlayerSummaryWithSmurf {
   smurf: SmurfAssessment;
 }
 
+const EMPTY_SMURF = computeSmurfAssessment({
+  summonerLevel: null, rankedWinrate: null,
+  championWinrate: null, championSampleSize: 0,
+});
+
+function emptyPlayerSummary(
+  puuid: string, teamId: number, championId?: number, riotId = "",
+): PlayerSummaryWithSmurf {
+  return {
+    puuid, teamId, championId, riotId,
+    profileIconId: 0, summonerLevel: 0,
+    soloQueue: null, flexQueue: null, topMasteries: [],
+    championWinrate: null, championSampleSize: 0,
+    smurf: EMPTY_SMURF,
+  };
+}
+
+function rankWinrate(entry: { wins: number; losses: number } | null): number | null {
+  if (!entry) return null;
+  const total = entry.wins + entry.losses;
+  return total > 0 ? entry.wins / total : null;
+}
+
+/** Fetch real Riot data for each player, with auth fast-fail. */
+async function fetchRealPlayers(
+  players: z.infer<typeof schema>["players"],
+  platform: string,
+): Promise<{ results: PlayerSummaryWithSmurf[]; authFailures: number }> {
+  const results: PlayerSummaryWithSmurf[] = [];
+  let authFailures = 0;
+  let authFailed = false;
+
+  for (const p of players) {
+    if (authFailed) {
+      results.push(emptyPlayerSummary(p.puuid, p.teamId, p.championId));
+      authFailures++;
+      continue;
+    }
+
+    try {
+      const summoner = await getSummonerByPuuid(p.puuid, platform);
+      const entries = await getLeagueEntries(p.puuid, platform);
+
+      const soloQueue = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
+      const flexQueue = entries.find((e) => e.queueType === "RANKED_FLEX_SR") ?? null;
+
+      const smurf = computeSmurfAssessment({
+        summonerLevel: summoner.summonerLevel,
+        rankedWinrate: rankWinrate(soloQueue ?? flexQueue),
+        championWinrate: null,
+        championSampleSize: 0,
+      });
+
+      results.push({
+        puuid: p.puuid,
+        teamId: p.teamId,
+        championId: p.championId,
+        riotId: summoner.name ?? "",
+        profileIconId: summoner.profileIconId,
+        summonerLevel: summoner.summonerLevel,
+        soloQueue,
+        flexQueue,
+        topMasteries: [],
+        championWinrate: null,
+        championSampleSize: 0,
+        smurf,
+      });
+    } catch (e) {
+      const isAuth = e instanceof RiotApiError &&
+        (e.code === RiotErrorCode.KEY_INVALID || e.code === RiotErrorCode.UNAUTHORIZED);
+      if (isAuth) {
+        authFailures++;
+        authFailed = true;
+      }
+      results.push(emptyPlayerSummary(p.puuid, p.teamId, p.championId));
+      if (e instanceof RiotApiError) {
+        console.warn(`[player-summaries] Failed to fetch ${p.puuid} on ${platform}: ${e.detail}`);
+      }
+    }
+  }
+
+  return { results, authFailures };
+}
+
 export const POST: APIRoute = async ({ request }) => {
   let body: unknown;
   try {
@@ -92,20 +176,7 @@ export const POST: APIRoute = async ({ request }) => {
           smurf: mock.smurf,
         };
       }
-      return {
-        puuid: p.puuid,
-        teamId: p.teamId,
-        championId: p.championId,
-        riotId: "Unknown",
-        profileIconId: 0,
-        summonerLevel: 0,
-        soloQueue: null,
-        flexQueue: null,
-        topMasteries: [],
-        championWinrate: null,
-        championSampleSize: 0,
-        smurf: computeSmurfAssessment({ summonerLevel: null, rankedWinrate: null, championWinrate: null, championSampleSize: 0 }),
-      };
+      return emptyPlayerSummary(p.puuid, p.teamId, p.championId);
     });
     return ok({ players: results });
   }
@@ -116,15 +187,9 @@ export const POST: APIRoute = async ({ request }) => {
     const results: PlayerSummaryWithSmurf[] = players.map((p) => {
       const mock = getMockPlayerSummary(p.puuid);
       if (mock) {
-        const entry = mock.soloQueue ?? mock.flexQueue;
-        let rankedWinrate: number | null = null;
-        if (entry) {
-          const total = entry.wins + entry.losses;
-          rankedWinrate = total > 0 ? entry.wins / total : null;
-        }
         const smurf = computeSmurfAssessment({
           summonerLevel: mock.summonerLevel,
-          rankedWinrate,
+          rankedWinrate: rankWinrate(mock.soloQueue ?? mock.flexQueue),
           championWinrate: null,
           championSampleSize: 0,
         });
@@ -143,121 +208,13 @@ export const POST: APIRoute = async ({ request }) => {
           smurf,
         };
       }
-      return {
-        puuid: p.puuid,
-        teamId: p.teamId,
-        riotId: "Unknown",
-        profileIconId: 0,
-        summonerLevel: 0,
-        soloQueue: null,
-        flexQueue: null,
-        topMasteries: [],
-        championWinrate: null,
-        championSampleSize: 0,
-        smurf: computeSmurfAssessment({ summonerLevel: null, rankedWinrate: null, championWinrate: null, championSampleSize: 0 }),
-      };
+      return emptyPlayerSummary(p.puuid, p.teamId, p.championId, "Unknown");
     });
     return ok({ players: results });
   }
 
   /* ── Real Riot API fetch ── */
-  const results: PlayerSummaryWithSmurf[] = [];
-  let authFailures = 0;
-  let authFailed = false; // fast-fail: skip remaining after first auth error
-
-  for (const p of players) {
-    if (authFailed) {
-      // Skip API calls, fill with empty data
-      results.push({
-        puuid: p.puuid,
-        teamId: p.teamId,
-        championId: p.championId,
-        riotId: "",
-        profileIconId: 0,
-        summonerLevel: 0,
-        soloQueue: null,
-        flexQueue: null,
-        topMasteries: [],
-        championWinrate: null,
-        championSampleSize: 0,
-        smurf: computeSmurfAssessment({
-          summonerLevel: null, rankedWinrate: null,
-          championWinrate: null, championSampleSize: 0,
-        }),
-      });
-      authFailures++;
-      continue;
-    }
-
-    try {
-      const summoner = await getSummonerByPuuid(p.puuid, platform);
-      const entries = await getLeagueEntries(p.puuid, platform);
-
-      const soloQueue = entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
-      const flexQueue = entries.find((e) => e.queueType === "RANKED_FLEX_SR") ?? null;
-
-      const entry = soloQueue ?? flexQueue;
-      let rankedWinrate: number | null = null;
-      if (entry) {
-        const total = entry.wins + entry.losses;
-        rankedWinrate = total > 0 ? entry.wins / total : null;
-      }
-
-      // TODO: championWinrate requires FEATURE_MATCH_HISTORY=true + match history fetch
-      const smurf = computeSmurfAssessment({
-        summonerLevel: summoner.summonerLevel,
-        rankedWinrate,
-        championWinrate: null,
-        championSampleSize: 0,
-      });
-
-      results.push({
-        puuid: p.puuid,
-        teamId: p.teamId,
-        championId: p.championId,
-        riotId: summoner.name ?? "",
-        profileIconId: summoner.profileIconId,
-        summonerLevel: summoner.summonerLevel,
-        soloQueue,
-        flexQueue,
-        topMasteries: [],
-        championWinrate: null,
-        championSampleSize: 0,
-        smurf,
-      });
-    } catch (e) {
-      const isAuth = e instanceof RiotApiError &&
-        (e.code === RiotErrorCode.KEY_INVALID || e.code === RiotErrorCode.UNAUTHORIZED);
-      if (isAuth) {
-        authFailures++;
-        authFailed = true; // fast-fail remaining players
-      }
-
-      /* If one player fails, still include them with "insufficient data" */
-      results.push({
-        puuid: p.puuid,
-        teamId: p.teamId,
-        championId: p.championId,
-        riotId: "",
-        profileIconId: 0,
-        summonerLevel: 0,
-        soloQueue: null,
-        flexQueue: null,
-        topMasteries: [],
-        championWinrate: null,
-        championSampleSize: 0,
-        smurf: computeSmurfAssessment({
-          summonerLevel: null,
-          rankedWinrate: null,
-          championWinrate: null,
-          championSampleSize: 0,
-        }),
-      });
-      if (e instanceof RiotApiError) {
-        console.warn(`[player-summaries] Failed to fetch ${p.puuid} on ${platform}: ${e.detail}`);
-      }
-    }
-  }
+  const { results, authFailures } = await fetchRealPlayers(players, platform);
 
   const warning = authFailures > 0
     ? `API key sin permisos para ${platform}. Puede que haya expirado (las dev keys duran 24h). Los datos de ranking no están disponibles.`

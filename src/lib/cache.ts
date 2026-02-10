@@ -23,7 +23,7 @@ export const TTL = {
   MASTERY: 30 * 60 * 1000, // 30 min
   LIVE_GAME: 10 * 1000, // 10 s
   DDRAGON: 24 * 60 * 60 * 1000, // 24 h
-  MATCHES: 15 * 60 * 1000, // 15 min
+  MATCHES: 60 * 60 * 1000, // 1 h — match IDs rarely change within a 7-day window
   MATCH_DETAIL: 24 * 60 * 60 * 1000, // 24 h (immutable)
   CHAMP_STATS: 6 * 60 * 60 * 1000, // 6 h
 } as const;

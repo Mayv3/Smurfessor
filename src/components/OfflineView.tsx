@@ -33,7 +33,7 @@ function AlertIcon() {
   );
 }
 
-export function OfflineView({ account, reason }: Props) {
+export function OfflineView({ account, reason }: Readonly<Props>) {
   const message =
     REASON_MESSAGES[reason] ??
     `No se puede obtener la partida: ${reason}`;

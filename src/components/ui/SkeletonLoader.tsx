@@ -22,8 +22,8 @@ export function SkeletonLoader() {
 
           {/* Role label row */}
           <div className="grid grid-cols-5 gap-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center justify-center py-1">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={`role-skel-${team}-${i}`} className="flex items-center justify-center py-1">
                 <div className="w-12 h-4 rounded bg-gray-800/40 animate-shimmer" style={{ animationDelay: `${i * 60}ms` }} />
               </div>
             ))}
@@ -31,9 +31,9 @@ export function SkeletonLoader() {
 
           {/* 5 card skeletons */}
           <div className="grid grid-cols-5 gap-3">
-            {[...Array(5)].map((_, i) => (
+            {Array.from({ length: 5 }, (_, i) => (
               <div
-                key={i}
+                key={`card-skel-${team}-${i}`}
                 className="rounded-xl border border-gray-700/30 bg-gray-800/30 overflow-hidden"
                 style={{ animationDelay: `${(team * 5 + i) * 70}ms` }}
               >

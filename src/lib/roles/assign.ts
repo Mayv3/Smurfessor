@@ -234,6 +234,32 @@ function roleScore(player: AssignablePlayer, role: Role): number {
   return 20;
 }
 
+function buildCandidates(scores: number[][]): { score: number; pi: number; ri: number }[] {
+  const candidates: { score: number; pi: number; ri: number }[] = [];
+  for (let pi = 0; pi < 5; pi++) {
+    for (let ri = 0; ri < 5; ri++) {
+      candidates.push({ score: scores[pi][ri], pi, ri });
+    }
+  }
+  return candidates.sort((a, b) => b.score - a.score);
+}
+
+function fillRemaining<T extends AssignablePlayer>(
+  assigned: RoledParticipant<T>[],
+  team: T[],
+  usedPlayers: Set<number>,
+): void {
+  for (let ri = 0; ri < 5; ri++) {
+    if (assigned[ri]) continue;
+    for (let pi = 0; pi < 5; pi++) {
+      if (usedPlayers.has(pi)) continue;
+      assigned[ri] = { role: ROLES[ri], data: team[pi] };
+      usedPlayers.add(pi);
+      break;
+    }
+  }
+}
+
 /**
  * Assign roles to a team of 5 using greedy best-match.
  * Returns participants in role order: TOP, JG, MID, ADC, SUP.
@@ -252,14 +278,7 @@ export function assignRoles<T extends AssignablePlayer>(
   const assigned: RoledParticipant<T>[] = new Array(5);
   const usedPlayers = new Set<number>();
   const usedRoles = new Set<number>();
-
-  const candidates: { score: number; pi: number; ri: number }[] = [];
-  for (let pi = 0; pi < 5; pi++) {
-    for (let ri = 0; ri < 5; ri++) {
-      candidates.push({ score: scores[pi][ri], pi, ri });
-    }
-  }
-  candidates.sort((a, b) => b.score - a.score);
+  const candidates = buildCandidates(scores);
 
   for (const { pi, ri } of candidates) {
     if (usedPlayers.has(pi) || usedRoles.has(ri)) continue;
@@ -269,17 +288,6 @@ export function assignRoles<T extends AssignablePlayer>(
     if (usedPlayers.size === 5) break;
   }
 
-  for (let ri = 0; ri < 5; ri++) {
-    if (!assigned[ri]) {
-      for (let pi = 0; pi < 5; pi++) {
-        if (!usedPlayers.has(pi)) {
-          assigned[ri] = { role: ROLES[ri], data: team[pi] };
-          usedPlayers.add(pi);
-          break;
-        }
-      }
-    }
-  }
-
+  fillRemaining(assigned, team, usedPlayers);
   return assigned;
 }

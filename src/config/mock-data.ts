@@ -10,6 +10,8 @@
 
 import { computeSmurfAssessment } from "../lib/smurf/rules";
 import type { SmurfAssessment } from "../lib/smurf/rules";
+import { computeInsights } from "../lib/insights";
+import type { PlayerInsights, PlayerSignals } from "../lib/insights/types";
 
 /* ══════════════════════════════════════════════════════════
    Shared helpers
@@ -206,8 +208,7 @@ function buildSmurfSummary(
   soloQ: RankedEntry | null,
   flexQ: RankedEntry | null,
   masteries: MockSummary["topMasteries"],
-  champWR: number | null,
-  champSample: number,
+  champ: { wr: number | null; sample: number },
 ): SmurfMockSummary {
   const entry = soloQ ?? flexQ;
   let rankedWinrate: number | null = null;
@@ -219,20 +220,20 @@ function buildSmurfSummary(
   const smurf = computeSmurfAssessment({
     summonerLevel: level,
     rankedWinrate,
-    championWinrate: champWR,
-    championSampleSize: champSample,
+    championWinrate: champ.wr,
+    championSampleSize: champ.sample,
   });
 
   return {
     puuid,
     riotId,
-    profileIconId: 4000 + parseInt(puuid.replace(/\D/g, "").slice(-3) || "0"),
+    profileIconId: 4000 + Number.parseInt(puuid.replaceAll(/\D/g, "").slice(-3) || "0"),
     summonerLevel: level,
     soloQueue: soloQ,
     flexQueue: flexQ,
     topMasteries: masteries,
-    championWinrate: champWR,
-    championSampleSize: champSample,
+    championWinrate: champ.wr,
+    championSampleSize: champ.sample,
     smurf,
   };
 }
@@ -246,52 +247,424 @@ const smurfSummaries: SmurfMockSummary[] = [
   /* Blue [0]: NewAccSmurf — level 30 → confirmed */
   buildSmurfSummary("SMURF-TEST-BLUE-0", "NewAccSmurf#TEST", 30,
     rEntry("RANKED_SOLO_5x5", "GOLD", "II", 50, 25, 25),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Blue [1]: WinrateGod — WR 72% → confirmed */
   buildSmurfSummary("SMURF-TEST-BLUE-1", "WinrateGod#TEST", 180,
     rEntry("RANKED_SOLO_5x5", "PLATINUM", "I", 80, 72, 28),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Blue [2]: SusLevel110 — level 110 → possible */
   buildSmurfSummary("SMURF-TEST-BLUE-2", "SusLevel110#TEST", 110,
     rEntry("RANKED_SOLO_5x5", "SILVER", "II", 30, 40, 50),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Blue [3]: NormalGuy1 — level 250, WR 52% → none */
   buildSmurfSummary("SMURF-TEST-BLUE-3", "NormalGuy1#TEST", 250,
     rEntry("RANKED_SOLO_5x5", "GOLD", "I", 60, 130, 120),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Blue [4]: NormalGuy2 — level 180, WR 48% → none */
   buildSmurfSummary("SMURF-TEST-BLUE-4", "NormalGuy2#TEST", 180,
     rEntry("RANKED_SOLO_5x5", "SILVER", "III", 40, 60, 65),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Red [0]: ChampAbuser — champWR 90% in 10 games → confirmed */
   buildSmurfSummary("SMURF-TEST-RED-0", "ChampAbuser#TEST", 200,
     rEntry("RANKED_SOLO_5x5", "PLATINUM", "III", 55, 100, 100),
-    null, defaultMasteries, 0.9, 10),
+    null, defaultMasteries, { wr: 0.9, sample: 10 }),
 
   /* Red [1]: SusLevel105 — level 105 → possible */
   buildSmurfSummary("SMURF-TEST-RED-1", "SusLevel105#TEST", 105,
     rEntry("RANKED_SOLO_5x5", "BRONZE", "I", 20, 35, 40),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Red [2]: SusLevel115 — level 115 → possible */
   buildSmurfSummary("SMURF-TEST-RED-2", "SusLevel115#TEST", 115,
     rEntry("RANKED_SOLO_5x5", "SILVER", "IV", 10, 28, 32),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Red [3]: CasualPlayer — level 200, WR 55% → none */
   buildSmurfSummary("SMURF-TEST-RED-3", "CasualPlayer#TEST", 200,
     rEntry("RANKED_SOLO_5x5", "GOLD", "IV", 35, 110, 90),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
 
   /* Red [4]: VeteranDad — level 300, WR 49% → none */
   buildSmurfSummary("SMURF-TEST-RED-4", "VeteranDad#TEST", 300,
     rEntry("RANKED_SOLO_5x5", "SILVER", "I", 70, 98, 102),
-    null, defaultMasteries, null, 0),
+    null, defaultMasteries, { wr: null, sample: 0 }),
+];
+
+/* ══════════════════════════════════════════════════════════
+   "insight-test" account — triggers ALL insight features
+   ══════════════════════════════════════════════════════════
+   Blue (100):
+     [0] SMURF confirmed  — level 35, 70% WR, hot streak
+     [1] OTP high          — 80% games on Yasuo, 1M mastery
+     [2] ELO QUEMADO       — 500 games, 47% WR
+     [3] LOW WR            — 40% ranked WR, bad CS/KDA
+     [4] CARRIED           — 60% WR but 1.2 KDA
+
+   Red (200):
+     [0] TILTED            — 6-game loss streak, 25% recent WR
+     [1] SMURF possible    — level 55, 62% WR
+     [2] OTP medium + ELO QUEMADO combo — 300 games, 50% WR, 70% one champ
+     [3] Clean / normal    — nothing flagged
+     [4] LOW WR + TILTED combo — 42% WR + 5-loss streak
+   ══════════════════════════════════════════════════════════ */
+
+export const INSIGHT_TEST_PUUID = "INSIGHT-TEST-PUUID-OWNER";
+
+export const INSIGHT_TEST_RESOLVE = {
+  account: {
+    key: "insight-test",
+    riotId: { gameName: "INSIGHT TEST", tagLine: "ALL" },
+    platform: "LA2" as const,
+    label: "🧠 Insight Test",
+  },
+  puuid: INSIGHT_TEST_PUUID,
+};
+
+const insightPlayers = [
+  /* Blue team */
+  { name: "SmurfGod#INS",        champId: 238,  spells: [4, 14] as const, team: 100, fullPerks: { perkIds: [8112, 8139, 8138, 8135, 8233, 8237], perkStyle: 8100, perkSubStyle: 8200 } },
+  { name: "OneYasuo#INS",        champId: 157,  spells: [4, 14] as const, team: 100, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8139, 8135], perkStyle: 8000, perkSubStyle: 8100 } },
+  { name: "QuemadoJuan#INS",     champId: 86,   spells: [4, 12] as const, team: 100, fullPerks: { perkIds: [8437, 8446, 8429, 8451, 9111, 9104], perkStyle: 8400, perkSubStyle: 8000 } },
+  { name: "LowWrAndy#INS",      champId: 51,   spells: [4, 7] as const,  team: 100, fullPerks: { perkIds: [8005, 9111, 9104, 8299, 8233, 8237], perkStyle: 8000, perkSubStyle: 8200 } },
+  { name: "CarriedBot#INS",      champId: 222,  spells: [4, 7] as const,  team: 100, fullPerks: { perkIds: [9923, 8139, 8138, 8135, 8233, 8237], perkStyle: 8100, perkSubStyle: 8200 } },
+  /* Red team */
+  { name: "TiltMaster#INS",      champId: 64,   spells: [4, 11] as const, team: 200, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8446, 8451], perkStyle: 8000, perkSubStyle: 8400 } },
+  { name: "BabySmurfMaybe#INS",  champId: 412,  spells: [4, 14] as const, team: 200, fullPerks: { perkIds: [8439, 8446, 8429, 8451, 8345, 8347], perkStyle: 8400, perkSubStyle: 8300 } },
+  { name: "OtpBurnout#INS",      champId: 45,   spells: [4, 14] as const, team: 200, fullPerks: { perkIds: [8214, 8226, 8210, 8237, 8139, 8135], perkStyle: 8200, perkSubStyle: 8100 } },
+  { name: "CleanPlayer#INS",     champId: 117,  spells: [4, 3] as const,  team: 200, fullPerks: { perkIds: [8351, 8313, 8345, 8347, 8233, 8237], perkStyle: 8300, perkSubStyle: 8200 } },
+  { name: "LowTilted#INS",       champId: 24,   spells: [4, 12] as const, team: 200, fullPerks: { perkIds: [8010, 9111, 9104, 8299, 8446, 8451], perkStyle: 8000, perkSubStyle: 8400 } },
+];
+
+export const INSIGHT_MOCK_LIVE_GAME = {
+  available: true as const,
+  gameId: 7777777,
+  gameMode: "CLASSIC",
+  gameStartTime: Date.now() - 8 * 60 * 1000,
+  teams: buildTeamParticipants(insightPlayers, "INSIGHT-TEST"),
+};
+
+/* ── Insight mock summaries (with pre-computed insights from rules engine) ── */
+export interface InsightMockSummary extends MockSummary {
+  championWinrate: number | null;
+  championSampleSize: number;
+  smurf: SmurfAssessment;
+  insights: PlayerInsights;
+}
+
+function buildInsightSummary(
+  puuid: string,
+  riotId: string,
+  level: number,
+  queues: { solo: RankedEntry | null; flex: RankedEntry | null },
+  masteries: MockSummary["topMasteries"],
+  champ: { wr: number | null; sample: number },
+  signalOverrides: Partial<PlayerSignals>,
+): InsightMockSummary {
+  const { solo: soloQ, flex: flexQ } = queues;
+  const entry = soloQ ?? flexQ;
+  let rankedWinrate: number | null = null;
+  if (entry) {
+    const total = entry.wins + entry.losses;
+    rankedWinrate = total > 0 ? entry.wins / total : null;
+  }
+
+  const smurf = computeSmurfAssessment({
+    summonerLevel: level,
+    rankedWinrate,
+    championWinrate: champ.wr,
+    championSampleSize: champ.sample,
+  });
+
+  /* Build full signals for the insight engine */
+  const ranked = entry
+    ? {
+        queue: entry.queueType as "RANKED_SOLO_5x5" | "RANKED_FLEX_SR",
+        tier: entry.tier,
+        rank: entry.rank,
+        lp: entry.leaguePoints,
+        wins: entry.wins,
+        losses: entry.losses,
+        hotStreak: entry.hotStreak,
+        freshBlood: entry.freshBlood,
+        veteran: entry.veteran,
+        inactive: entry.inactive,
+      }
+    : null;
+
+  const mastery = masteries.length > 0
+    ? {
+        top: masteries.slice(0, 5).map((m) => ({
+          championId: m.championId,
+          points: m.championPoints,
+          level: m.championLevel,
+        })),
+        currentChampion: null,
+      }
+    : null;
+
+  const signals: PlayerSignals = {
+    summonerLevel: level,
+    ranked,
+    currentChampionId: null,
+    currentRole: "UNKNOWN",
+    recent: null,
+    champRecent: null,
+    mastery,
+    ...signalOverrides,
+  };
+
+  const insights = computeInsights(signals);
+
+  return {
+    puuid,
+    riotId,
+    profileIconId: 5000 + Number.parseInt(puuid.replaceAll(/\D/g, "").slice(-3) || "0"),
+    summonerLevel: level,
+    soloQueue: soloQ,
+    flexQueue: flexQ,
+    topMasteries: masteries,
+    championWinrate: champ.wr,
+    championSampleSize: champ.sample,
+    smurf,
+    insights,
+  };
+}
+
+const insightSummaries: InsightMockSummary[] = [
+  /* ═══ Blue [0]: SMURF confirmed ═══ */
+  buildInsightSummary("INSIGHT-TEST-BLUE-0", "SmurfGod#INS", 35,
+    { solo: { ...rEntry("RANKED_SOLO_5x5", "PLATINUM", "II", 77, 70, 30), hotStreak: true, freshBlood: true }, flex: null },
+    [{ championId: 238, championLevel: 5, championPoints: 48000 }, { championId: 91, championLevel: 4, championPoints: 22000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 20, wins: 15, losses: 5, winrate: 0.75,
+        streak: { type: "W", count: 5 },
+        champPool: [
+          { championId: 238, games: 8, winrate: 0.875 },
+          { championId: 91, games: 6, winrate: 0.67 },
+          { championId: 55, games: 6, winrate: 0.67 },
+        ],
+        rolePool: [{ role: "MIDDLE", games: 18 }, { role: "TOP", games: 2 }],
+        avg: { kda: 5.2, deaths: 2.1, csPerMin: 8.8, goldPerMin: 450, damagePerMin: 900, visionPerMin: 0.6 },
+      },
+    },
+  ),
+
+  /* ═══ Blue [1]: OTP high ═══ */
+  buildInsightSummary("INSIGHT-TEST-BLUE-1", "OneYasuo#INS", 320,
+    { solo: rEntry("RANKED_SOLO_5x5", "DIAMOND", "III", 45, 180, 160), flex: null },
+    [
+      { championId: 157, championLevel: 7, championPoints: 1_200_000 },
+      { championId: 238, championLevel: 5, championPoints: 120_000 },
+      { championId: 91, championLevel: 4, championPoints: 60_000 },
+    ],
+    { wr: 0.62, sample: 15 },
+    {
+      currentChampionId: 157,
+      recent: {
+        window: 20, matches: 20, wins: 12, losses: 8, winrate: 0.6,
+        streak: { type: "W", count: 2 },
+        champPool: [
+          { championId: 157, games: 16, winrate: 0.625 },
+          { championId: 238, games: 2, winrate: 0.5 },
+          { championId: 91, games: 2, winrate: 0.5 },
+        ],
+        rolePool: [{ role: "MIDDLE", games: 18 }, { role: "TOP", games: 2 }],
+        avg: { kda: 3.1, deaths: 4.5, csPerMin: 7.5, goldPerMin: 410, damagePerMin: 750, visionPerMin: 0.5 },
+      },
+      champRecent: { championId: 157, games: 16, wins: 10, losses: 6, winrate: 0.625 },
+      mastery: {
+        top: [
+          { championId: 157, points: 1_200_000, level: 7 },
+          { championId: 238, points: 120_000, level: 5 },
+          { championId: 91, points: 60_000, level: 4 },
+        ],
+        currentChampion: { points: 1_200_000, level: 7 },
+      },
+    },
+  ),
+
+  /* ═══ Blue [2]: ELO QUEMADO ═══ */
+  buildInsightSummary("INSIGHT-TEST-BLUE-2", "QuemadoJuan#INS", 410,
+    { solo: rEntry("RANKED_SOLO_5x5", "GOLD", "III", 22, 235, 265), flex: null },
+    [{ championId: 86, championLevel: 7, championPoints: 890_000 }, { championId: 122, championLevel: 7, championPoints: 540_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 18, wins: 7, losses: 11, winrate: 0.389,
+        streak: { type: "L", count: 4 },
+        champPool: [
+          { championId: 86, games: 7, winrate: 0.43 },
+          { championId: 122, games: 5, winrate: 0.4 },
+          { championId: 36, games: 6, winrate: 0.33 },
+        ],
+        rolePool: [{ role: "TOP", games: 16 }, { role: "MIDDLE", games: 2 }],
+        avg: { kda: 1.8, deaths: 5.8, csPerMin: 5.5, goldPerMin: 320, damagePerMin: 480, visionPerMin: 0.3 },
+      },
+    },
+  ),
+
+  /* ═══ Blue [3]: LOW WR ═══ */
+  buildInsightSummary("INSIGHT-TEST-BLUE-3", "LowWrAndy#INS", 200,
+    { solo: rEntry("RANKED_SOLO_5x5", "SILVER", "IV", 15, 60, 90), flex: null },
+    [{ championId: 51, championLevel: 6, championPoints: 180_000 }, { championId: 81, championLevel: 5, championPoints: 95_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 20, wins: 7, losses: 13, winrate: 0.35,
+        streak: { type: "L", count: 3 },
+        champPool: [
+          { championId: 51, games: 8, winrate: 0.375 },
+          { championId: 81, games: 7, winrate: 0.29 },
+          { championId: 236, games: 5, winrate: 0.4 },
+        ],
+        rolePool: [{ role: "BOTTOM", games: 18 }, { role: "MIDDLE", games: 2 }],
+        avg: { kda: 1.3, deaths: 7.2, csPerMin: 4.8, goldPerMin: 290, damagePerMin: 350, visionPerMin: 0.4 },
+      },
+    },
+  ),
+
+  /* ═══ Blue [4]: CARRIED ═══ */
+  buildInsightSummary("INSIGHT-TEST-BLUE-4", "CarriedBot#INS", 180,
+    { solo: rEntry("RANKED_SOLO_5x5", "PLATINUM", "I", 88, 120, 80), flex: null },
+    [{ championId: 222, championLevel: 7, championPoints: 340_000 }, { championId: 22, championLevel: 6, championPoints: 210_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 20, wins: 12, losses: 8, winrate: 0.6,
+        streak: { type: "W", count: 3 },
+        champPool: [
+          { championId: 222, games: 10, winrate: 0.6 },
+          { championId: 22, games: 6, winrate: 0.67 },
+          { championId: 29, games: 4, winrate: 0.5 },
+        ],
+        rolePool: [{ role: "BOTTOM", games: 20 }],
+        avg: { kda: 1.2, deaths: 6.5, csPerMin: 7, goldPerMin: 380, damagePerMin: 550, visionPerMin: 0.3 },
+      },
+    },
+  ),
+
+  /* ═══ Red [0]: TILTED ═══ */
+  buildInsightSummary("INSIGHT-TEST-RED-0", "TiltMaster#INS", 260,
+    { solo: rEntry("RANKED_SOLO_5x5", "GOLD", "II", 33, 140, 150), flex: null },
+    [{ championId: 64, championLevel: 7, championPoints: 510_000 }, { championId: 76, championLevel: 6, championPoints: 280_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 20, wins: 5, losses: 15, winrate: 0.25,
+        streak: { type: "L", count: 7 },
+        champPool: [
+          { championId: 64, games: 8, winrate: 0.25 },
+          { championId: 76, games: 7, winrate: 0.29 },
+          { championId: 121, games: 5, winrate: 0.2 },
+        ],
+        rolePool: [{ role: "JUNGLE", games: 20 }],
+        avg: { kda: 1.6, deaths: 6, csPerMin: 5, goldPerMin: 310, damagePerMin: 420, visionPerMin: 0.4 },
+      },
+    },
+  ),
+
+  /* ═══ Red [1]: SMURF possible ═══ */
+  buildInsightSummary("INSIGHT-TEST-RED-1", "BabySmurfMaybe#INS", 55,
+    { solo: rEntry("RANKED_SOLO_5x5", "GOLD", "I", 65, 62, 38), flex: null },
+    [{ championId: 412, championLevel: 5, championPoints: 42_000 }, { championId: 53, championLevel: 4, championPoints: 28_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 18, wins: 12, losses: 6, winrate: 0.667,
+        streak: { type: "W", count: 3 },
+        champPool: [
+          { championId: 412, games: 6, winrate: 0.67 },
+          { championId: 53, games: 5, winrate: 0.6 },
+          { championId: 111, games: 4, winrate: 0.75 },
+          { championId: 89, games: 3, winrate: 0.67 },
+        ],
+        rolePool: [{ role: "UTILITY", games: 18 }],
+        avg: { kda: 4, deaths: 3.2, csPerMin: 1.2, goldPerMin: 280, damagePerMin: 200, visionPerMin: 1.8 },
+      },
+    },
+  ),
+
+  /* ═══ Red [2]: OTP medium + ELO QUEMADO combo ═══ */
+  buildInsightSummary("INSIGHT-TEST-RED-2", "OtpBurnout#INS", 380,
+    { solo: rEntry("RANKED_SOLO_5x5", "SILVER", "II", 40, 150, 150), flex: null },
+    [
+      { championId: 45, championLevel: 7, championPoints: 950_000 },
+      { championId: 112, championLevel: 6, championPoints: 200_000 },
+      { championId: 63, championLevel: 5, championPoints: 100_000 },
+    ],
+    { wr: null, sample: 0 },
+    {
+      currentChampionId: 45,
+      recent: {
+        window: 20, matches: 20, wins: 9, losses: 11, winrate: 0.45,
+        streak: { type: "L", count: 2 },
+        champPool: [
+          { championId: 45, games: 14, winrate: 0.5 },
+          { championId: 112, games: 4, winrate: 0.25 },
+          { championId: 63, games: 2, winrate: 0.5 },
+        ],
+        rolePool: [{ role: "MIDDLE", games: 20 }],
+        avg: { kda: 2, deaths: 5.5, csPerMin: 6.2, goldPerMin: 340, damagePerMin: 520, visionPerMin: 0.4 },
+      },
+      champRecent: { championId: 45, games: 14, wins: 7, losses: 7, winrate: 0.5 },
+      mastery: {
+        top: [
+          { championId: 45, points: 950_000, level: 7 },
+          { championId: 112, points: 200_000, level: 6 },
+          { championId: 63, points: 100_000, level: 5 },
+        ],
+        currentChampion: { points: 950_000, level: 7 },
+      },
+    },
+  ),
+
+  /* ═══ Red [3]: Clean / normal ═══ */
+  buildInsightSummary("INSIGHT-TEST-RED-3", "CleanPlayer#INS", 250,
+    { solo: rEntry("RANKED_SOLO_5x5", "GOLD", "I", 60, 130, 120), flex: null },
+    [{ championId: 117, championLevel: 7, championPoints: 340_000 }, { championId: 37, championLevel: 6, championPoints: 220_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 20, wins: 11, losses: 9, winrate: 0.55,
+        streak: { type: "W", count: 2 },
+        champPool: [
+          { championId: 117, games: 6, winrate: 0.67 },
+          { championId: 37, games: 5, winrate: 0.6 },
+          { championId: 267, games: 5, winrate: 0.4 },
+          { championId: 89, games: 4, winrate: 0.5 },
+        ],
+        rolePool: [{ role: "UTILITY", games: 20 }],
+        avg: { kda: 3.2, deaths: 3.8, csPerMin: 1.5, goldPerMin: 270, damagePerMin: 180, visionPerMin: 1.6 },
+      },
+    },
+  ),
+
+  /* ═══ Red [4]: LOW WR + TILTED combo ═══ */
+  buildInsightSummary("INSIGHT-TEST-RED-4", "LowTilted#INS", 190,
+    { solo: rEntry("RANKED_SOLO_5x5", "BRONZE", "II", 12, 52, 78), flex: null },
+    [{ championId: 24, championLevel: 6, championPoints: 280_000 }, { championId: 23, championLevel: 5, championPoints: 150_000 }],
+    { wr: null, sample: 0 },
+    {
+      recent: {
+        window: 20, matches: 20, wins: 5, losses: 15, winrate: 0.25,
+        streak: { type: "L", count: 6 },
+        champPool: [
+          { championId: 24, games: 8, winrate: 0.25 },
+          { championId: 23, games: 7, winrate: 0.29 },
+          { championId: 75, games: 5, winrate: 0.2 },
+        ],
+        rolePool: [{ role: "TOP", games: 18 }, { role: "JUNGLE", games: 2 }],
+        avg: { kda: 1.1, deaths: 7.5, csPerMin: 4.5, goldPerMin: 270, damagePerMin: 330, visionPerMin: 0.2 },
+      },
+    },
+  ),
 ];
 
 /* ══════════════════════════════════════════════════════════
@@ -304,13 +677,20 @@ export function isTestPuuid(puuid: string): boolean {
     puuid === TEST_PUUID ||
     puuid.startsWith("TEST-PUUID-") ||
     puuid === SMURF_TEST_PUUID ||
-    puuid.startsWith("SMURF-TEST-")
+    puuid.startsWith("SMURF-TEST-") ||
+    puuid === INSIGHT_TEST_PUUID ||
+    puuid.startsWith("INSIGHT-TEST-")
   );
 }
 
 /** Check if a puuid belongs to the smurf-test account */
 export function isSmurfTestPuuid(puuid: string): boolean {
   return puuid === SMURF_TEST_PUUID || puuid.startsWith("SMURF-TEST-");
+}
+
+/** Check if a puuid belongs to the insight-test account */
+export function isInsightTestPuuid(puuid: string): boolean {
+  return puuid === INSIGHT_TEST_PUUID || puuid.startsWith("INSIGHT-TEST-");
 }
 
 /** Get legacy mock summary (old "test" account) */
@@ -331,4 +711,14 @@ export function getSmurfMockPlayerSummary(puuid: string): SmurfMockSummary | und
 /** Get all smurf-test summaries (for batch endpoint) */
 export function getAllSmurfMockSummaries(): SmurfMockSummary[] {
   return smurfSummaries;
+}
+
+/** Get insight-test mock summary (includes insights) */
+export function getInsightMockPlayerSummary(puuid: string): InsightMockSummary | undefined {
+  return insightSummaries.find((s) => s.puuid === puuid);
+}
+
+/** Get all insight-test summaries (for batch endpoint) */
+export function getAllInsightMockSummaries(): InsightMockSummary[] {
+  return insightSummaries;
 }

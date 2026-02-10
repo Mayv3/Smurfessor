@@ -118,6 +118,7 @@ export interface PlayerSummary {
 
 import type { NormalizedRunes } from "../ddragon/runes";
 import type { SmurfAssessment } from "../smurf/rules";
+import type { PlayerInsights } from "../insights/types";
 
 export interface PlayerCardRanked {
   queue: "RANKED_SOLO_5x5" | "RANKED_FLEX_SR";
@@ -141,6 +142,12 @@ export interface PlayerCardChampStats {
   totalRankedGames: number;
   gamesWithChamp: number | null;
   winrateWithChamp: number | null;
+  /** Average KDA with this champion: (kills+assists)/deaths. null if no data */
+  kdaWithChamp: number | null;
+  /** Per-game averages. null if no data */
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
   sampleSizeOk: boolean;
   note?: string;
 }
@@ -169,4 +176,5 @@ export interface PlayerCardData {
   runes: NormalizedRunes | null;
   spells: { spell1: PlayerCardSpell; spell2: PlayerCardSpell } | null;
   smurf: SmurfAssessment;
+  insights: PlayerInsights | null;
 }

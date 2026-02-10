@@ -1,6 +1,8 @@
 import { SmurfBadge } from "./ui/SmurfBadge";
-import { IconPerson, IconFire } from "./ui/Icons";
+import { InsightChipList } from "./ui/InsightChip";
+import { IconPerson } from "./ui/Icons";
 import type { SmurfAssessment } from "../lib/smurf/rules";
+import type { PlayerInsights, Insight } from "../lib/insights/types";
 import type { NormalizedRunes, NormalizedRuneSlot } from "../lib/ddragon/runes";
 
 /* ── Types matching PlayerCardData from POST /api/player-cards ── */
@@ -26,6 +28,12 @@ export interface PlayerCardChampStats {
   totalRankedGames: number;
   gamesWithChamp: number | null;
   winrateWithChamp: number | null;
+  /** Average KDA with this champion: (kills+assists)/deaths. null if no data */
+  kdaWithChamp: number | null;
+  /** Per-game averages. null if no data */
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
   sampleSizeOk: boolean;
   note?: string;
 }
@@ -42,10 +50,13 @@ export interface PlayerCardSpell {
 }
 
 export interface PlayerCardProps {
+  /** Used by parent for keying; not consumed inside the card */
   puuid: string;
+  /** Passed through by parent; not consumed inside the card */
   teamId: number;
   riotId: { gameName: string; tagLine: string };
   summonerLevel: number;
+  /** Available in props for parent use; not consumed inside the card */
   profileIconId: number;
   ranked: PlayerCardRanked | null;
   currentChampion: PlayerCardChampion;
@@ -54,6 +65,7 @@ export interface PlayerCardProps {
   runes: NormalizedRunes | null;
   spells: { spell1: PlayerCardSpell; spell2: PlayerCardSpell } | null;
   smurf: SmurfAssessment;
+  insights?: PlayerInsights | null;
   participant: {
     championId: number;
     spell1Id: number;
@@ -133,6 +145,14 @@ function wrBgColor(wr: number): string {
   return "bg-gray-500";
 }
 
+/* ── KDA color helper ─────────────────────────────────── */
+function kdaColor(kda: number): string {
+  if (kda >= 5) return "text-orange-400";
+  if (kda >= 3) return "text-emerald-400";
+  if (kda >= 2) return "text-blue-400";
+  return "text-gray-400";
+}
+
 /* ── Mastery badge ────────────────────────────────────── */
 function masteryBadge(level: number): { text: string; cls: string } {
   if (level >= 7) return { text: "M7", cls: "bg-gradient-to-r from-cyan-500 to-cyan-600 text-white border-cyan-400/60 shadow-cyan-500/20 shadow-sm" };
@@ -183,7 +203,7 @@ function isEscombro(ranked: PlayerCardRanked | null): boolean {
 }
 
 /* ── Rune icon renderer ───────────────────────────────── */
-function RuneIcon({ slot, size = "w-5 h-5" }: { slot: NormalizedRuneSlot; size?: string }) {
+function RuneIcon({ slot, size = "w-5 h-5" }: Readonly<{ slot: NormalizedRuneSlot; size?: string }>) {
   if (!slot.icon) {
     return <div className={`${size} rounded-full bg-gray-700/40`} title={slot.name} />;
   }
@@ -198,13 +218,321 @@ function RuneIcon({ slot, size = "w-5 h-5" }: { slot: NormalizedRuneSlot; size?:
   );
 }
 
-/* ── Skull icon for escombro ──────────────────────────── */
-function IconSkull({ className = "w-3 h-3" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2C6.48 2 2 6.48 2 12v4a2 2 0 002 2h1v2a2 2 0 002 2h2v-2h2v2h2v-2h2a2 2 0 002-2v-2h1a2 2 0 002-2v-4c0-5.52-4.48-10-10-10zm-3 13a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm6 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
-    </svg>
+
+/* ── Sub-components to reduce cognitive complexity ──── */
+
+function CardOverlays({ isSmurf, isPossibleSmurf, escombro, eloQuemado }: Readonly<{
+  isSmurf: boolean; isPossibleSmurf: boolean; escombro: boolean; eloQuemado: boolean;
+}>) {
+  if (isSmurf) return (
+    <>
+      <div className="absolute inset-0 bg-red-500/[0.04] pointer-events-none z-0" />
+      <div className="absolute inset-x-0 top-0 h-12 pointer-events-none z-0 overflow-hidden">
+        <div className="w-full h-1 bg-gradient-to-r from-transparent via-red-500/30 to-transparent" style={{ animation: 'smurfScan 3s linear infinite' }} />
+      </div>
+      <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none z-0">
+        <div className="absolute inset-0 bg-gradient-to-bl from-red-500/10 to-transparent" />
+      </div>
+    </>
   );
+  if (isPossibleSmurf) return (
+    <>
+      <div className="absolute inset-0 bg-yellow-500/[0.03] pointer-events-none z-0" />
+      <div className="absolute inset-x-0 top-0 h-1 pointer-events-none z-0">
+        <div className="h-full" style={{
+          background: 'repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(234,179,8,0.25) 8px, rgba(234,179,8,0.25) 16px)',
+          animation: 'warningPulse 3s ease-in-out infinite'
+        }} />
+      </div>
+    </>
+  );
+  if (escombro) return (
+    <>
+      <div className="absolute inset-0 pointer-events-none z-0" style={{
+        background: 'radial-gradient(circle at 30% 80%, rgba(120,113,108,0.08), transparent 60%), radial-gradient(circle at 70% 20%, rgba(120,113,108,0.06), transparent 50%)',
+      }} />
+      <div className="absolute bottom-0 inset-x-0 h-8 pointer-events-none z-0">
+        <svg viewBox="0 0 200 20" className="w-full h-full opacity-10" preserveAspectRatio="none">
+          <path d="M0,10 L30,8 L45,15 L60,5 L80,12 L100,7 L130,14 L150,6 L170,11 L200,9" stroke="#78716c" strokeWidth="0.5" fill="none" />
+        </svg>
+      </div>
+    </>
+  );
+  if (eloQuemado) return (
+    <>
+      <div className="absolute inset-x-0 bottom-0 h-20 pointer-events-none z-0" style={{
+        background: 'linear-gradient(to top, rgba(251,146,60,0.08), rgba(251,146,60,0.03) 50%, transparent)',
+        animation: 'fireRise 2.5s ease-in-out infinite',
+        transformOrigin: 'bottom'
+      }} />
+      <div className="absolute bottom-2 left-1/4 w-1 h-1 rounded-full bg-orange-400/20 animate-float" style={{ animationDuration: '2s' }} />
+      <div className="absolute bottom-4 right-1/3 w-0.5 h-0.5 rounded-full bg-orange-500/30 animate-float" style={{ animationDuration: '3s', animationDelay: '0.5s' }} />
+      <div className="absolute bottom-1 right-1/4 w-0.5 h-0.5 rounded-full bg-yellow-400/20 animate-float" style={{ animationDuration: '2.5s', animationDelay: '1s' }} />
+    </>
+  );
+  return null;
+}
+
+/** Summoner level pill — stays absolute top-left */
+function LevelBadge({ summonerLevel, loading }: Readonly<{ summonerLevel: number; loading?: boolean }>) {
+  if (summonerLevel <= 0 || loading) return null;
+  return (
+    <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 border border-gray-600/40 backdrop-blur-md z-20">
+      <IconPerson className="w-3 h-3 text-gray-400" />
+      <span className="text-[10px] font-semibold text-gray-300">{summonerLevel}</span>
+    </div>
+  );
+}
+
+/** Insight badges — rendered in normal flow (not absolute) to avoid overlaps */
+function InsightBadges({ loading, smurf, hasInsights, visibleInsights, eloQuemado, escombro, ranked, wr }: Readonly<{
+  loading?: boolean;
+  smurf: SmurfAssessment; hasInsights: boolean; visibleInsights: Insight[];
+  eloQuemado: boolean; escombro: boolean;
+  ranked: PlayerCardRanked | null; wr: number | null;
+}>) {
+  if (loading) return null;
+
+  // Limit to 2 insight chips max
+  const maxBadges = 2;
+  const badges = hasInsights ? visibleInsights.slice(0, maxBadges) : [];
+
+  // Show legacy badges when insight engine doesn't already cover them
+  const insightKinds = new Set(badges.map((i) => i.kind));
+  const showLegacySmurf = smurf && smurf.severity !== "none" && !insightKinds.has("SMURF");
+  const showEscombro = escombro && !insightKinds.has("LOW_WR");
+  const showEloQuemado = eloQuemado && !insightKinds.has("ELO_QUEMADO");
+
+  if (badges.length === 0 && !showLegacySmurf && !showEscombro && !showEloQuemado) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {showLegacySmurf && (
+        <SmurfBadge severity={smurf.severity} label={smurf.label} probability={smurf.probability} reasons={smurf.reasons} />
+      )}
+      {badges.length > 0 && (
+        <InsightChipList insights={badges} />
+      )}
+      {showEloQuemado && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-gradient-to-r from-orange-600/70 to-orange-500/60 text-orange-100 border-orange-500/40 shadow-sm" title={`${ranked!.games} rankeds jugadas`}>
+          ELO QUEMADO
+        </span>
+      )}
+      {showEscombro && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-gradient-to-r from-stone-700/70 to-stone-600/60 text-stone-200 border-stone-500/40 shadow-sm" title={`${wr}% WR en ranked`}>
+          ESCOMBRO
+        </span>
+      )}
+    </div>
+  );
+}
+
+function RankDisplay({ ranked, wr, loading }: Readonly<{
+  ranked: PlayerCardRanked | null; wr: number | null; loading?: boolean;
+}>) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 bg-gray-800 rounded-lg animate-shimmer" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-4 w-20 bg-gray-800 rounded animate-shimmer" />
+          <div className="h-3 w-12 bg-gray-800/60 rounded animate-shimmer" />
+        </div>
+        <div className="w-12 h-8 bg-gray-800 rounded-lg animate-shimmer" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2.5">
+      {ranked ? (
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <img src={rankEmblem(ranked.tier)} alt={ranked.tier} className="w-11 h-11 object-contain shrink-0 drop-shadow-lg" loading="lazy" />
+          <div className="min-w-0">
+            <div className={`text-sm font-bold leading-tight ${TIER_COLOR[ranked.tier] ?? "text-gray-400"}`}>
+              {ranked.tier} {ranked.rank}
+            </div>
+            <div className="text-[11px] text-gray-500 mt-0.5">{ranked.leaguePoints} LP</div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-1 text-gray-600 text-sm">
+          <div className="w-11 h-11 rounded-lg bg-gray-800/50 flex items-center justify-center">
+            <span className="text-gray-600 text-lg">—</span>
+          </div>
+          <span className="text-gray-500">Unranked</span>
+        </div>
+      )}
+
+      <div className="text-right shrink-0">
+        {wr === null ? (
+          <div className="flex flex-col items-end gap-1">
+            <div className="text-xl font-extrabold leading-none text-gray-700">—</div>
+            <div className="text-[9px] text-gray-600 uppercase tracking-wider">WR</div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-end gap-1">
+            <div className={`text-xl font-extrabold leading-none ${wrColor(wr)}`}>{wr}%</div>
+            <div className="w-12 h-1 rounded-full bg-gray-700/60 overflow-hidden">
+              <div className={`h-full rounded-full ${wrBgColor(wr)} transition-all`} style={{ width: `${Math.min(wr, 100)}%` }} />
+            </div>
+            <div className="text-[9px] text-gray-600 uppercase tracking-wider">WR</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChampionHeader({ champ, currentChampion, s1, s2, runes, participant, riotId, loading, ddragon }: Readonly<{
+  champ: { id: string; name: string; key: string; image: string } | undefined;
+  currentChampion: PlayerCardChampion;
+  s1: { id: string; name: string; key: string; image: string } | undefined;
+  s2: { id: string; name: string; key: string; image: string } | undefined;
+  runes: NormalizedRunes | null;
+  participant: { perkKeystone?: number; perkSubStyle?: number };
+  riotId: { gameName: string; tagLine: string };
+  loading?: boolean;
+  ddragon: {
+    version: string;
+    runes?: Record<string, { id: number; key: string; name: string; icon: string }>;
+    runeData?: Record<string, { id: number; key: string; name: string; icon: string }>;
+  };
+}>) {
+  return (
+    <div className="flex items-center gap-3 mt-5">
+      <div className="relative shrink-0">
+        {champ ? (
+          <img
+            src={champIcon(ddragon.version, currentChampion.icon || champ.image)}
+            alt={currentChampion.name || champ.name}
+            className="w-14 h-14 rounded-lg ring-2 ring-gray-600/60 shadow-lg shadow-black/30"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-lg bg-gray-800 flex items-center justify-center text-gray-600 text-sm ring-2 ring-gray-700/40">?</div>
+        )}
+        <div className="absolute -bottom-1.5 -right-1.5 flex gap-0.5">
+          {s1 && <img src={spellIcon(ddragon.version, s1.image)} alt={s1.name} className="w-5 h-5 rounded ring-1 ring-black/60 shadow" loading="lazy" />}
+          {s2 && <img src={spellIcon(ddragon.version, s2.image)} alt={s2.name} className="w-5 h-5 rounded ring-1 ring-black/60 shadow" loading="lazy" />}
+        </div>
+      </div>
+      <div className="flex flex-col gap-0.5 shrink-0">
+        <RunesPreview runes={runes} participant={participant} ddragon={ddragon} />
+      </div>
+      <div className="flex-1 min-w-0">
+        {loading ? (
+          <div className="space-y-1.5">
+            <span className="w-20 h-4 bg-gray-800 rounded animate-shimmer inline-block" />
+            <span className="w-12 h-3 bg-gray-800/60 rounded animate-shimmer inline-block" />
+          </div>
+        ) : (
+          <>
+            <span className="font-bold text-white text-sm leading-snug block truncate">
+              {riotId.gameName || "Unknown"}
+            </span>
+            <span className="text-[11px] text-gray-500 block mt-0.5">
+              #{riotId.tagLine || "???"}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Rune column preview: full → fallback keystone → placeholders ── */
+function RunesPreview({ runes, participant, ddragon }: Readonly<{
+  runes: NormalizedRunes | null;
+  participant: { perkKeystone?: number; perkSubStyle?: number };
+  ddragon: {
+    runes?: Record<string, { id: number; key: string; name: string; icon: string }>;
+    runeData?: Record<string, { id: number; key: string; name: string; icon: string }>;
+  };
+}>) {
+  if (runes) {
+    return (
+      <>
+        <RuneIcon slot={runes.keystone} size="w-7 h-7" />
+        <RuneIcon slot={runes.subStyle} size="w-5 h-5" />
+      </>
+    );
+  }
+
+  const keystoneRune = participant.perkKeystone == null
+    ? undefined
+    : ddragon.runeData?.[String(participant.perkKeystone)];
+  const subRuneTree = participant.perkSubStyle == null
+    ? undefined
+    : ddragon.runes?.[String(participant.perkSubStyle)];
+
+  if (keystoneRune) {
+    return (
+      <>
+        <img src={runeIconUrl(keystoneRune.icon)} alt={keystoneRune.name} title={keystoneRune.name} className="w-7 h-7 rounded-full bg-gray-900/60 p-0.5" loading="lazy" />
+        {subRuneTree ? (
+          <img src={runeIconUrl(subRuneTree.icon)} alt={subRuneTree.name} title={subRuneTree.name} className="w-5 h-5 rounded-full bg-gray-900/60 p-0.5 self-center opacity-70" loading="lazy" />
+        ) : (
+          <div className="w-5 h-5 rounded-full bg-gray-700/30 self-center" />
+        )}
+      </>
+    );
+  }
+  return (
+    <>
+      <div className="w-7 h-7 rounded-full bg-gray-800/60" />
+      <div className="w-5 h-5 rounded-full bg-gray-800/40 self-center" />
+    </>
+  );
+}
+
+/* ── Champ-stats inline preview ──────────────────────── */
+function ChampStatsPreview({ champWR, champGames, champStats, mastery }: Readonly<{
+  champWR: number | null;
+  champGames: number;
+  champStats: PlayerCardChampStats;
+  mastery: PlayerCardMastery | null;
+}>) {
+  if (champWR !== null && champGames > 0) {
+    const { kdaWithChamp, avgKills, avgDeaths, avgAssists } = champStats;
+    const hasKda = kdaWithChamp != null && avgKills != null && avgDeaths != null && avgAssists != null;
+    return (
+      <>
+        <span className={`text-sm font-bold ${wrColor(champWR)}`}>{champWR}%</span>
+        {hasKda && (
+          <span
+            className={`text-[10px] font-semibold ${kdaColor(kdaWithChamp)}`}
+            title={`${avgKills.toFixed(1)} / ${avgDeaths.toFixed(1)} / ${avgAssists.toFixed(1)} promedio por partida`}
+          >
+            {avgKills.toFixed(1)}/{avgDeaths.toFixed(1)}/{avgAssists.toFixed(1)}
+            <span className="text-gray-500 font-normal"> ({kdaWithChamp.toFixed(1)}:1)</span>
+          </span>
+        )}
+        <span className="text-[10px] text-gray-500 ml-auto shrink-0 inline-flex items-center gap-1">
+          {champGames}p/{champStats.totalRankedGames}
+          <span className="text-[9px] text-gray-600 px-1 py-0.5 rounded bg-gray-800/80 border border-gray-700/40" title="Últimos 7 días ranked">7d</span>
+        </span>
+      </>
+    );
+  }
+  if (champStats.note === "FEATURE_DISABLED") {
+    return <span className="text-[10px] text-gray-600">Champ WR: —</span>;
+  }
+  if (champStats.totalRankedGames > 0) {
+    return (
+      <span className="text-[10px] text-gray-600">
+        0p / {champStats.totalRankedGames} ranked (7d)
+      </span>
+    );
+  }
+  if (!mastery) {
+    return (
+      <span className="text-[10px] text-gray-600">
+        {champStats.note === "NO_CHAMP_GAMES" ? "Sin ranked (7d)" : "Champ WR: —"}
+      </span>
+    );
+  }
+  return <span className="text-[10px] text-gray-600">Sin ranked recientes (7d)</span>;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -219,34 +547,35 @@ export function PlayerCard({
   mastery,
   runes,
   smurf,
+  insights,
   participant,
   ddragon,
   loading,
-}: PlayerCardProps) {
+}: Readonly<PlayerCardProps>) {
   const champ = ddragon.champions[String(participant.championId)];
   const s1 = ddragon.spells[String(participant.spell1Id)];
   const s2 = ddragon.spells[String(participant.spell2Id)];
 
-  const keystoneRune = !runes && participant.perkKeystone != null
-    ? ddragon.runeData?.[String(participant.perkKeystone)]
-    : undefined;
-  const subRuneTree = !runes && participant.perkSubStyle != null
-    ? ddragon.runes?.[String(participant.perkSubStyle)]
-    : undefined;
-
   const wr = ranked ? Math.round(ranked.winrate * 100) : null;
-  const champWR = champStats.winrateWithChamp != null ? Math.round(champStats.winrateWithChamp * 100) : null;
+  const champWR = champStats.winrateWithChamp == null ? null : Math.round(champStats.winrateWithChamp * 100);
   const champGames = champStats.gamesWithChamp ?? 0;
 
   const eloQuemado = !loading && isEloQuemado(ranked);
   const escombro = !loading && isEscombro(ranked);
 
+  /* Insight-driven overrides (if insights engine produced results) */
+  const hasInsights = !loading && insights && insights.insights.length > 0;
+  const visibleInsights = hasInsights
+    ? (insights?.insights ?? []).filter((i: Insight) => i.severity !== "none" && i.severity !== "low")
+    : [];
+
   const tier = ranked?.tier;
   const gradient = tier ? TIER_GRADIENT[tier] ?? "from-transparent to-transparent" : "from-transparent to-transparent";
   const glowCls = !loading && tier && smurf?.severity === "none" ? tierGlowClass(tier) : "";
-  const typeCls = !loading ? cardTypeClass(smurf, ranked) : "";
+  const typeCls = loading ? "" : cardTypeClass(smurf, ranked);
   const isSmurf = smurf?.severity === "confirmed";
   const isPossibleSmurf = smurf?.severity === "possible";
+
 
   return (
     <div
@@ -258,212 +587,31 @@ export function PlayerCard({
       <div className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-b ${gradient} pointer-events-none`} />
 
       {/* ── Type overlays ── */}
-      {isSmurf && (
-        <>
-          {/* Red tint */}
-          <div className="absolute inset-0 bg-red-500/[0.04] pointer-events-none z-0" />
-          {/* Moving scan line */}
-          <div className="absolute inset-x-0 top-0 h-12 pointer-events-none z-0 overflow-hidden">
-            <div className="w-full h-1 bg-gradient-to-r from-transparent via-red-500/30 to-transparent" style={{ animation: 'smurfScan 3s linear infinite' }} />
-          </div>
-          {/* Corner danger accent */}
-          <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none z-0">
-            <div className="absolute inset-0 bg-gradient-to-bl from-red-500/10 to-transparent" />
-          </div>
-        </>
-      )}
-      {isPossibleSmurf && (
-        <>
-          {/* Yellow tint */}
-          <div className="absolute inset-0 bg-yellow-500/[0.03] pointer-events-none z-0" />
-          {/* Warning stripe at top */}
-          <div className="absolute inset-x-0 top-0 h-1 pointer-events-none z-0">
-            <div className="h-full" style={{
-              background: 'repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(234,179,8,0.25) 8px, rgba(234,179,8,0.25) 16px)',
-              animation: 'warningPulse 3s ease-in-out infinite'
-            }} />
-          </div>
-        </>
-      )}
-      {escombro && !isSmurf && !isPossibleSmurf && (
-        <>
-          {/* Decay overlay */}
-          <div className="absolute inset-0 pointer-events-none z-0" style={{
-            background: 'radial-gradient(circle at 30% 80%, rgba(120,113,108,0.08), transparent 60%), radial-gradient(circle at 70% 20%, rgba(120,113,108,0.06), transparent 50%)',
-          }} />
-          {/* Subtle crack lines */}
-          <div className="absolute bottom-0 inset-x-0 h-8 pointer-events-none z-0">
-            <svg viewBox="0 0 200 20" className="w-full h-full opacity-10" preserveAspectRatio="none">
-              <path d="M0,10 L30,8 L45,15 L60,5 L80,12 L100,7 L130,14 L150,6 L170,11 L200,9" stroke="#78716c" strokeWidth="0.5" fill="none" />
-            </svg>
-          </div>
-        </>
-      )}
-      {eloQuemado && !isSmurf && !isPossibleSmurf && (
-        <>
-          {/* Fire gradient at bottom */}
-          <div className="absolute inset-x-0 bottom-0 h-20 pointer-events-none z-0" style={{
-            background: 'linear-gradient(to top, rgba(251,146,60,0.08), rgba(251,146,60,0.03) 50%, transparent)',
-            animation: 'fireRise 2.5s ease-in-out infinite',
-            transformOrigin: 'bottom'
-          }} />
-          {/* Ember dots */}
-          <div className="absolute bottom-2 left-1/4 w-1 h-1 rounded-full bg-orange-400/20 animate-float" style={{ animationDuration: '2s' }} />
-          <div className="absolute bottom-4 right-1/3 w-0.5 h-0.5 rounded-full bg-orange-500/30 animate-float" style={{ animationDuration: '3s', animationDelay: '0.5s' }} />
-          <div className="absolute bottom-1 right-1/4 w-0.5 h-0.5 rounded-full bg-yellow-400/20 animate-float" style={{ animationDuration: '2.5s', animationDelay: '1s' }} />
-        </>
-      )}
+      <CardOverlays isSmurf={isSmurf} isPossibleSmurf={isPossibleSmurf} escombro={escombro} eloQuemado={eloQuemado} />
 
       {/* ── Card content ── */}
       <div className="relative flex flex-col gap-2.5 p-3.5 flex-1">
 
-        {/* ── Corner badges ── */}
-        {summonerLevel > 0 && !loading && (
-          <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 border border-gray-600/40 backdrop-blur-md z-20">
-            <IconPerson className="w-3 h-3 text-gray-400" />
-            <span className="text-[10px] font-semibold text-gray-300">{summonerLevel}</span>
-          </div>
-        )}
-
-        <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-20">
-          {smurf && smurf.severity !== "none" && !loading && (
-            <SmurfBadge
-              severity={smurf.severity}
-              label={smurf.label}
-              probability={smurf.probability}
-              reasons={smurf.reasons}
-            />
-          )}
-          {eloQuemado && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-gradient-to-r from-orange-600 to-orange-500 text-white border-orange-400/60 shadow-sm shadow-orange-500/20 animate-firePulse" title={`${ranked!.games} rankeds jugadas`}>
-              <IconFire className="w-3 h-3" />
-              ELO QUEMADO
-            </span>
-          )}
-          {escombro && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-gradient-to-r from-stone-700 to-stone-600 text-stone-200 border-stone-500/60 shadow-sm" title={`${wr}% WR en ranked`}>
-              <IconSkull className="w-3 h-3" />
-              ESCOMBRO
-            </span>
-          )}
-        </div>
+        {/* ── Level badge (absolute top-left) ── */}
+        <LevelBadge summonerLevel={summonerLevel} loading={loading} />
 
         {/* ── Row 1: Champion + Spells + Runes + Name ── */}
-        <div className="flex items-center gap-3 mt-5">
-          <div className="relative shrink-0">
-            {champ ? (
-              <img
-                src={champIcon(ddragon.version, currentChampion.icon || champ.image)}
-                alt={currentChampion.name || champ.name}
-                className="w-14 h-14 rounded-lg ring-2 ring-gray-600/60 shadow-lg shadow-black/30"
-                loading="lazy"
-              />
-            ) : (
-              <div className="w-14 h-14 rounded-lg bg-gray-800 flex items-center justify-center text-gray-600 text-sm ring-2 ring-gray-700/40">?</div>
-            )}
-            <div className="absolute -bottom-1.5 -right-1.5 flex gap-0.5">
-              {s1 && <img src={spellIcon(ddragon.version, s1.image)} alt={s1.name} className="w-5 h-5 rounded ring-1 ring-black/60 shadow" loading="lazy" />}
-              {s2 && <img src={spellIcon(ddragon.version, s2.image)} alt={s2.name} className="w-5 h-5 rounded ring-1 ring-black/60 shadow" loading="lazy" />}
-            </div>
-          </div>
+        <ChampionHeader
+          champ={champ} currentChampion={currentChampion}
+          s1={s1} s2={s2} runes={runes} participant={participant}
+          riotId={riotId} loading={loading} ddragon={ddragon}
+        />
 
-          <div className="flex flex-col gap-0.5 shrink-0">
-            {runes ? (
-              <>
-                <RuneIcon slot={runes.keystone} size="w-7 h-7" />
-                <RuneIcon slot={runes.subStyle} size="w-5 h-5" />
-              </>
-            ) : keystoneRune ? (
-              <>
-                <img src={runeIconUrl(keystoneRune.icon)} alt={keystoneRune.name} title={keystoneRune.name} className="w-7 h-7 rounded-full bg-gray-900/60 p-0.5" loading="lazy" />
-                {subRuneTree ? (
-                  <img src={runeIconUrl(subRuneTree.icon)} alt={subRuneTree.name} title={subRuneTree.name} className="w-5 h-5 rounded-full bg-gray-900/60 p-0.5 self-center opacity-70" loading="lazy" />
-                ) : (
-                  <div className="w-5 h-5 rounded-full bg-gray-700/30 self-center" />
-                )}
-              </>
-            ) : (
-              <>
-                <div className="w-7 h-7 rounded-full bg-gray-800/60" />
-                <div className="w-5 h-5 rounded-full bg-gray-800/40 self-center" />
-              </>
-            )}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            {loading ? (
-              <div className="space-y-1.5">
-                <span className="w-20 h-4 bg-gray-800 rounded animate-shimmer inline-block" />
-                <span className="w-12 h-3 bg-gray-800/60 rounded animate-shimmer inline-block" />
-              </div>
-            ) : (
-              <>
-                <span className="font-bold text-white text-sm leading-snug block truncate">
-                  {riotId.gameName || "Unknown"}
-                </span>
-                <span className="text-[11px] text-gray-500 block mt-0.5">
-                  #{riotId.tagLine || "???"}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
+        {/* ── Row 1b: Insight badges (in flow, below name) ── */}
+        <InsightBadges
+          loading={loading} smurf={smurf}
+          hasInsights={!!hasInsights} visibleInsights={visibleInsights}
+          eloQuemado={eloQuemado} escombro={escombro}
+          ranked={ranked} wr={wr}
+        />
 
         {/* ── Row 2: Rank + Winrate ── */}
-        {loading ? (
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-gray-800 rounded-lg animate-shimmer" />
-            <div className="flex-1 space-y-1.5">
-              <div className="h-4 w-20 bg-gray-800 rounded animate-shimmer" />
-              <div className="h-3 w-12 bg-gray-800/60 rounded animate-shimmer" />
-            </div>
-            <div className="w-12 h-8 bg-gray-800 rounded-lg animate-shimmer" />
-          </div>
-        ) : (
-          <div className="flex items-center gap-2.5">
-            {ranked ? (
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <img
-                  src={rankEmblem(ranked.tier)}
-                  alt={ranked.tier}
-                  className="w-11 h-11 object-contain shrink-0 drop-shadow-lg"
-                  loading="lazy"
-                />
-                <div className="min-w-0">
-                  <div className={`text-sm font-bold leading-tight ${TIER_COLOR[ranked.tier] ?? "text-gray-400"}`}>
-                    {ranked.tier} {ranked.rank}
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">{ranked.leaguePoints} LP</div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 flex-1 text-gray-600 text-sm">
-                <div className="w-11 h-11 rounded-lg bg-gray-800/50 flex items-center justify-center">
-                  <span className="text-gray-600 text-lg">—</span>
-                </div>
-                <span className="text-gray-500">Unranked</span>
-              </div>
-            )}
-
-            {/* WR with mini progress bar */}
-            <div className="text-right shrink-0">
-              {wr !== null ? (
-                <div className="flex flex-col items-end gap-1">
-                  <div className={`text-xl font-extrabold leading-none ${wrColor(wr)}`}>{wr}%</div>
-                  <div className="w-12 h-1 rounded-full bg-gray-700/60 overflow-hidden">
-                    <div className={`h-full rounded-full ${wrBgColor(wr)} transition-all`} style={{ width: `${Math.min(wr, 100)}%` }} />
-                  </div>
-                  <div className="text-[9px] text-gray-600 uppercase tracking-wider">WR</div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="text-xl font-extrabold leading-none text-gray-700">—</div>
-                  <div className="text-[9px] text-gray-600 uppercase tracking-wider">WR</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <RankDisplay ranked={ranked} wr={wr} loading={loading} />
 
         {/* ── Row 3: Mastery + Champion WR + games (ranked 7d) ── */}
         {!loading && (
@@ -479,27 +627,7 @@ export function PlayerCard({
               <img src={champIcon(ddragon.version, currentChampion.icon || champ.image)} alt={currentChampion.name || champ.name} className="w-5 h-5 rounded" loading="lazy" />
             )}
 
-            {champWR !== null && champGames > 0 ? (
-              <>
-                <span className={`text-sm font-bold ${wrColor(champWR)}`}>{champWR}%</span>
-                <span className="text-[10px] text-gray-500">
-                  {champGames}p / {champStats.totalRankedGames}
-                </span>
-                <span className="text-[9px] text-gray-600 ml-auto px-1 py-0.5 rounded bg-gray-800/80 border border-gray-700/40" title="Últimos 7 días ranked">7d</span>
-              </>
-            ) : champStats.note === "FEATURE_DISABLED" ? (
-              <span className="text-[10px] text-gray-600">Champ WR: —</span>
-            ) : champStats.totalRankedGames > 0 ? (
-              <span className="text-[10px] text-gray-600">
-                0p / {champStats.totalRankedGames} ranked (7d)
-              </span>
-            ) : !mastery ? (
-              <span className="text-[10px] text-gray-600">
-                {champStats.note === "NO_CHAMP_GAMES" ? "Sin ranked (7d)" : "Champ WR: —"}
-              </span>
-            ) : (
-              <span className="text-[10px] text-gray-600">Sin ranked recientes (7d)</span>
-            )}
+            <ChampStatsPreview champWR={champWR} champGames={champGames} champStats={champStats} mastery={mastery} />
           </div>
         )}
 
@@ -508,18 +636,18 @@ export function PlayerCard({
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-800/40 border border-gray-700/20 flex-wrap">
             <RuneIcon slot={runes.primaryStyle} size="w-4 h-4" />
             <span className="text-gray-700 text-[10px]">|</span>
-            {runes.primaryRunes.map((r, i) => (
-              <RuneIcon key={`p-${i}`} slot={r} size="w-4 h-4" />
+            {runes.primaryRunes.map((r) => (
+              <RuneIcon key={`p-${r.id}`} slot={r} size="w-4 h-4" />
             ))}
             <span className="text-gray-700 text-[10px] mx-0.5">·</span>
-            {runes.secondaryRunes.map((r, i) => (
-              <RuneIcon key={`s-${i}`} slot={r} size="w-4 h-4" />
+            {runes.secondaryRunes.map((r) => (
+              <RuneIcon key={`s-${r.id}`} slot={r} size="w-4 h-4" />
             ))}
             {runes.shards.length > 0 && (
               <>
                 <span className="text-gray-700 text-[10px] mx-0.5">·</span>
-                {runes.shards.map((s, i) => (
-                  <RuneIcon key={`sh-${i}`} slot={s} size="w-3.5 h-3.5" />
+                {runes.shards.map((s) => (
+                  <RuneIcon key={`sh-${s.id}`} slot={s} size="w-3.5 h-3.5" />
                 ))}
               </>
             )}

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ACCOUNTS } from "../../config/accounts";
 import { getAccountByRiotId } from "../../lib/riot/endpoints";
 import { RiotApiError } from "../../lib/riot/errors";
-import { MOCK_RESOLVE, SMURF_TEST_RESOLVE } from "../../config/mock-data";
+import { MOCK_RESOLVE, SMURF_TEST_RESOLVE, INSIGHT_TEST_RESOLVE } from "../../config/mock-data";
 import { ok, err } from "../../lib/api-response";
 
 const schema = z.object({ key: z.string().min(1) });
@@ -20,6 +20,9 @@ export const GET: APIRoute = async ({ url }) => {
   }
   if (parsed.data.key === "smurf-test") {
     return ok(SMURF_TEST_RESOLVE);
+  }
+  if (parsed.data.key === "insight-test") {
+    return ok(INSIGHT_TEST_RESOLVE);
   }
 
   const account = ACCOUNTS.find((a) => a.key === parsed.data.key);

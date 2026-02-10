@@ -48,7 +48,7 @@ export const GET: APIRoute = async ({ url }) => {
       entries.find((e) => e.queueType === "RANKED_SOLO_5x5") ?? null;
     const flexQueue =
       entries.find((e) => e.queueType === "RANKED_FLEX_SR") ?? null;
-    const topMasteries = masteries
+    const topMasteries = [...masteries]
       .sort((a, b) => b.championPoints - a.championPoints)
       .slice(0, 3);
 

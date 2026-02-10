@@ -17,14 +17,20 @@ import { normalizeRunes } from "../../lib/ddragon/runes";
 import type { NormalizedRunes } from "../../lib/ddragon/runes";
 import { getChampionRecentStats } from "../../lib/riot/match-stats";
 import { computeSmurfAssessment } from "../../lib/smurf/rules";
+import { buildPlayerSignals, buildCheapSignals } from "../../lib/insights/signals";
+import { computeInsights } from "../../lib/insights";
+import type { PlayerSignals } from "../../lib/insights/types";
+import { flushBulkQueue } from "../../lib/riot/http";
 
 import { RiotApiError } from "../../lib/riot/errors";
 import { FEATURES } from "../../config/features";
 import {
   isSmurfTestPuuid,
   isTestPuuid,
+  isInsightTestPuuid,
   getMockPlayerSummary,
   getAllSmurfMockSummaries,
+  getAllInsightMockSummaries,
 } from "../../config/mock-data";
 import { ok, err } from "../../lib/api-response";
 import type {
@@ -87,6 +93,10 @@ function emptyChampStats(_championId: number, note: string): PlayerCardChampStat
     totalRankedGames: 0,
     gamesWithChamp: null,
     winrateWithChamp: null,
+    kdaWithChamp: null,
+    avgKills: null,
+    avgDeaths: null,
+    avgAssists: null,
     sampleSizeOk: false,
     note,
   };
@@ -111,7 +121,20 @@ function emptyCard(puuid: string, teamId: number, championId: number): PlayerCar
       championWinrate: null,
       championSampleSize: 0,
     }),
+    insights: null,
   };
+}
+
+/* ── Mock dispatch — returns a mock response if applicable, else null ── */
+function dispatchMock(
+  players: z.infer<typeof schema>["players"],
+  dd: Awaited<ReturnType<typeof bootstrap>> | null,
+): Response | null {
+  if (FEATURES.mockRiot) return ok({ players: buildMockCards(players, dd) });
+  if (players.every((p) => isInsightTestPuuid(p.puuid))) return ok({ players: buildInsightTestCards(players, dd) });
+  if (players.every((p) => isSmurfTestPuuid(p.puuid))) return ok({ players: buildSmurfTestCards(players, dd) });
+  if (players.every((p) => isTestPuuid(p.puuid))) return ok({ players: buildLegacyTestCards(players, dd) });
+  return null;
 }
 
 /* ── Main handler ────────────────────────────────────── */
@@ -139,22 +162,12 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   /* ── Check mock modes ── */
-  if (FEATURES.mockRiot) {
-    return ok({ players: buildMockCards(players, dd) });
-  }
-
-  const allSmurf = players.every((p) => isSmurfTestPuuid(p.puuid));
-  if (allSmurf) {
-    return ok({ players: buildSmurfTestCards(players, dd) });
-  }
-
-  const allLegacy = players.every((p) => isTestPuuid(p.puuid));
-  if (allLegacy) {
-    return ok({ players: buildLegacyTestCards(players, dd) });
-  }
+  const mockResponse = dispatchMock(players, dd);
+  if (mockResponse) return mockResponse;
 
   /* ── Real Riot API fetch (parallel — rate limiter handles concurrency) ── */
-  const ENRICHMENT_TIMEOUT = 25_000; // 25s hard cap
+  const ENRICHMENT_TIMEOUT = 30_000; // 30s hard cap
+  const INSIGHTS_TIMEOUT = 4_000;    // 4s max for deep insight signals
 
   async function enrichPlayer(
     p: z.infer<typeof playerSchema>,
@@ -193,6 +206,10 @@ export const POST: APIRoute = async ({ request }) => {
                 ? champStatsRaw.gamesWithChamp
                 : null,
             winrateWithChamp: champStatsRaw.winrateWithChamp,
+            kdaWithChamp: champStatsRaw.kdaWithChamp,
+            avgKills: champStatsRaw.avgKills,
+            avgDeaths: champStatsRaw.avgDeaths,
+            avgAssists: champStatsRaw.avgAssists,
             sampleSizeOk: champStatsRaw.sampleSizeOk,
             note: champStatsRaw.note,
           }
@@ -227,7 +244,7 @@ export const POST: APIRoute = async ({ request }) => {
         );
       }
 
-      /* 6) Smurf assessment */
+      /* 6) Smurf assessment (legacy) */
       const rankedWinrate = ranked ? ranked.winrate : null;
       const smurf = computeSmurfAssessment({
         summonerLevel: summoner.summonerLevel,
@@ -235,6 +252,47 @@ export const POST: APIRoute = async ({ request }) => {
         championWinrate: champStats.winrateWithChamp,
         championSampleSize: champStats.gamesWithChamp ?? 0,
       });
+
+      /* 7) Insights engine — try full signals with timeout, fallback to cheap */
+      let insights: import("../../lib/insights/types").PlayerInsights | null = null;
+      try {
+        const cheapSignals = buildCheapSignals(
+          summoner.summonerLevel, entries, allMasteries, p.championId,
+        );
+        const cheapFallback: PlayerSignals = {
+          ...cheapSignals,
+          currentRole: "UNKNOWN",
+          recent: null,
+          champRecent: null,
+        } as PlayerSignals;
+
+        /* Race: full signals (deep match data) vs 4s timeout → cheap only */
+        const signals = await Promise.race([
+          buildPlayerSignals(
+            p.puuid, summoner.summonerLevel, entries,
+            allMasteries, p.championId, undefined, platform,
+          ),
+          new Promise<PlayerSignals>((r) =>
+            setTimeout(() => {
+              console.info(`[player-cards] insights deep timeout for ${p.puuid} — using cheap signals`);
+              r(cheapFallback);
+            }, INSIGHTS_TIMEOUT),
+          ),
+        ]);
+        insights = computeInsights(signals);
+      } catch (e) {
+        /* Last resort: cheap-only insights */
+        try {
+          const cheap = buildCheapSignals(
+            summoner.summonerLevel, entries, allMasteries ?? null, p.championId,
+          );
+          insights = computeInsights({
+            ...cheap, currentRole: "UNKNOWN", recent: null, champRecent: null,
+          } as PlayerSignals);
+        } catch {
+          console.warn(`[player-cards] insights failed entirely for ${p.puuid}:`, e);
+        }
+      }
 
       return {
         puuid: p.puuid,
@@ -252,6 +310,7 @@ export const POST: APIRoute = async ({ request }) => {
         runes,
         spells: null,
         smurf,
+        insights,
       };
     } catch (e) {
       if (e instanceof RiotApiError) {
@@ -266,10 +325,17 @@ export const POST: APIRoute = async ({ request }) => {
     Promise.allSettled(players.map(enrichPlayer)),
     new Promise<PromiseSettledResult<PlayerCardData>[]>((resolve) =>
       setTimeout(
-        () => resolve(players.map((p) => ({
-          status: "fulfilled" as const,
-          value: emptyCard(p.puuid, p.teamId, p.championId),
-        }))),
+        () => {
+          /* Flush queued-but-not-started bulk requests to free the rate limiter */
+          const flushed = flushBulkQueue();
+          if (flushed > 0) {
+            console.warn(`[player-cards] enrichment timeout — flushed ${flushed} queued bulk requests`);
+          }
+          resolve(players.map((p) => ({
+            status: "fulfilled" as const,
+            value: emptyCard(p.puuid, p.teamId, p.championId),
+          })));
+        },
         ENRICHMENT_TIMEOUT,
       ),
     ),
@@ -364,6 +430,10 @@ function buildSmurfTestCards(
         totalRankedGames: 0,
         gamesWithChamp: champSample > 0 ? champSample : null,
         winrateWithChamp: champWR,
+        kdaWithChamp: champSample > 0 ? 3.5 : null,
+        avgKills: champSample > 0 ? 6.2 : null,
+        avgDeaths: champSample > 0 ? 3.1 : null,
+        avgAssists: champSample > 0 ? 7.8 : null,
         sampleSizeOk: champSample >= 8,
         note: champSample === 0 ? "MOCK_DATA" : undefined,
       },
@@ -374,6 +444,82 @@ function buildSmurfTestCards(
         summonerLevel: null, rankedWinrate: null,
         championWinrate: null, championSampleSize: 0,
       }),
+      insights: null,
+    };
+  });
+}
+
+function buildInsightTestCards(
+  players: z.infer<typeof schema>["players"],
+  dd: Awaited<ReturnType<typeof bootstrap>> | null,
+): PlayerCardData[] {
+  const mocks = getAllInsightMockSummaries();
+  return players.map((p) => {
+    const mock = mocks.find((m) => m.puuid === p.puuid);
+    const champData = dd?.champions[String(p.championId)];
+
+    const entry = mock?.soloQueue ?? mock?.flexQueue ?? null;
+    let ranked: PlayerCardRanked | null = null;
+    if (entry) {
+      const games = entry.wins + entry.losses;
+      ranked = {
+        queue: entry.queueType as "RANKED_SOLO_5x5" | "RANKED_FLEX_SR",
+        tier: entry.tier,
+        rank: entry.rank,
+        leaguePoints: entry.leaguePoints,
+        wins: entry.wins,
+        losses: entry.losses,
+        games,
+        winrate: games > 0 ? entry.wins / games : 0,
+      };
+    }
+
+    const riotIdParts = (mock?.riotId ?? "Unknown#???").split("#");
+    const champWR = mock?.championWinrate ?? null;
+    const champSample = mock?.championSampleSize ?? 0;
+
+    let runes: NormalizedRunes | null = null;
+    if (p.perks && dd) {
+      runes = normalizeRunes(
+        { perkIds: p.perks.perkIds ?? [], perkStyle: p.perks.perkStyle ?? 0, perkSubStyle: p.perks.perkSubStyle ?? 0 },
+        p.perks.perkStatShards ?? null,
+        dd.runes,
+        dd.runeData,
+      );
+    }
+
+    return {
+      puuid: p.puuid,
+      teamId: p.teamId,
+      riotId: { gameName: riotIdParts[0], tagLine: riotIdParts[1] ?? "???" },
+      summonerLevel: mock?.summonerLevel ?? 0,
+      profileIconId: mock?.profileIconId ?? 0,
+      ranked,
+      currentChampion: champData
+        ? { id: p.championId, name: champData.name, icon: champData.image }
+        : { id: p.championId, name: "Unknown", icon: "" },
+      champStats: {
+        recentWindow: "7d",
+        totalRankedGames: ranked?.games ?? 0,
+        gamesWithChamp: champSample > 0 ? champSample : null,
+        winrateWithChamp: champWR,
+        kdaWithChamp: champSample > 0 ? 2.8 : null,
+        avgKills: champSample > 0 ? 5 : null,
+        avgDeaths: champSample > 0 ? 4.2 : null,
+        avgAssists: champSample > 0 ? 6.7 : null,
+        sampleSizeOk: champSample >= 8,
+        note: champSample === 0 ? "MOCK_DATA" : undefined,
+      },
+      mastery: mock?.topMasteries?.[0]
+        ? { championLevel: mock.topMasteries[0].championLevel, championPoints: mock.topMasteries[0].championPoints }
+        : null,
+      runes,
+      spells: null,
+      smurf: mock?.smurf ?? computeSmurfAssessment({
+        summonerLevel: null, rankedWinrate: null,
+        championWinrate: null, championSampleSize: 0,
+      }),
+      insights: mock?.insights ?? null,
     };
   });
 }
@@ -435,6 +581,7 @@ function buildLegacyTestCards(
         championWinrate: null,
         championSampleSize: 0,
       }),
+      insights: null,
     };
   });
 }

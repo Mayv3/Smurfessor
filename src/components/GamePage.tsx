@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
 });
 
 /* ── Inner component (uses hooks) ────────────────────── */
-function GamePageInner({ accountKey }: { accountKey: string }) {
+function GamePageInner({ accountKey }: Readonly<{ accountKey: string }>) {
   const [retryCount, setRetryCount] = useState(0);
 
   /* 1) Fetch live game directly by account key (live-game now supports ?key=) */
@@ -105,7 +105,7 @@ function GamePageInner({ accountKey }: { accountKey: string }) {
 }
 
 /* ── Exported island wrapper ─────────────────────────── */
-export function GamePage({ accountKey }: { accountKey: string }) {
+export function GamePage({ accountKey }: Readonly<{ accountKey: string }>) {
   return (
     <QueryClientProvider client={queryClient}>
       <GamePageInner accountKey={accountKey} />
