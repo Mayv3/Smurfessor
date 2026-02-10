@@ -29,7 +29,8 @@ const TIER_COLORS: Record<string, string> = {
 /** Community Dragon ranked emblem images */
 function rankEmblemUrl(tier: string): string {
   const t = tier.toLowerCase();
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${t}.png`;
+  const ext = t === 'emerald' ? 'svg' : 'png';
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${t}.${ext}`;
 }
 
 export function RankBadge({ label, tier, rank, lp, wins, losses, compact }: Props) {

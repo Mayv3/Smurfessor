@@ -78,7 +78,9 @@ function champIcon(ver: string, img: string) { return `${DD}/cdn/${ver}/img/cham
 function spellIcon(ver: string, img: string) { return `${DD}/cdn/${ver}/img/spell/${img}`; }
 function runeIconUrl(iconPath: string) { return `${DD}/cdn/img/${iconPath}`; }
 function rankEmblem(tier: string) {
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier.toLowerCase()}.png`;
+  const t = tier.toLowerCase();
+  const ext = t === 'emerald' ? 'svg' : 'png';
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${t}.${ext}`;
 }
 
 /* ── Rank colors ──────────────────────────────────────── */
