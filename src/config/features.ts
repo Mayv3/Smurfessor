@@ -10,6 +10,6 @@ function env(key: string, fallback: string): string {
 
 export const FEATURES = {
   spectator: env("FEATURE_SPECTATOR", "true") === "true",
-  matchHistory: env("FEATURE_MATCH_HISTORY", "false") === "true",
+  matchHistory: env("FEATURE_MATCH_HISTORY", "true") === "true",
   mockRiot: env("MOCK_RIOT", "false") === "true",
 } as const;
