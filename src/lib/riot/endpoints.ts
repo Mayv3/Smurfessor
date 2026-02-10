@@ -154,7 +154,7 @@ export async function getMatchIds(
 
   const base = regionalUrl(platform);
   const url = `${base}/lol/match/v5/matches/by-puuid/${puuid}/ids?${params.toString()}`;
-  const data = await riotFetch<string[]>(url);
+  const data = await riotFetch<string[]>(url, { priority: "bulk" });
   setCached("matchIds", cacheKey, data, TTL.MATCHES);
   return data;
 }
@@ -165,7 +165,7 @@ export async function getMatch(matchId: string, platform?: string): Promise<unkn
 
   const base = regionalUrl(platform);
   const url = `${base}/lol/match/v5/matches/${matchId}`;
-  const data = await riotFetch<unknown>(url);
+  const data = await riotFetch<unknown>(url, { priority: "bulk", maxRetries: 1, timeout: 8_000 });
   setCached("match", matchId, data, TTL.MATCH_DETAIL);
   return data;
 }

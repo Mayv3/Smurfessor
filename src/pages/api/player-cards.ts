@@ -159,13 +159,17 @@ export const POST: APIRoute = async ({ request }) => {
     try {
       /* 1) Account (riotId) */
       /* All API calls in parallel — rate limiter handles concurrency */
+      /* champStats uses bulk lane + 10s timeout so it doesn't block core data */
+      const champStatsPromise = Promise.race([
+        getChampionRecentStats(p.puuid, p.championId, platform),
+        new Promise<null>((r) => setTimeout(() => r(null), 10_000)),
+      ]).catch(() => null);
+
       const [accountResult, summoner, entries, champStatsRaw] = await Promise.all([
         getAccountByPuuid(p.puuid, platform).catch(() => null),
         getSummonerByPuuid(p.puuid, platform),
         getLeagueEntries(p.puuid, platform),
-        getChampionRecentStats(p.puuid, p.championId, platform).catch(
-          () => null,
-        ),
+        champStatsPromise,
       ]);
 
       const gameName = accountResult?.gameName ?? "";

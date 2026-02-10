@@ -115,8 +115,8 @@ export async function getChampionRecentStats(
       return result;
     }
 
-    /* 2) Fetch match details in parallel (each one cached 24 h individually) */
-    const BATCH_SIZE = 10;
+    /* 2) Fetch match details (each one cached 24h individually) */
+    const BATCH_SIZE = 3; // small batches to avoid rate limit pressure
     let gamesWithChamp = 0;
     let wins = 0;
 

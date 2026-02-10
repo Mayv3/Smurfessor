@@ -1,5 +1,5 @@
 import { A as ACCOUNTS } from '../../../chunks/accounts_BS9-O4eu.mjs';
-import { g as getAccountByRiotId, a as getSummonerByPuuid, b as getLeagueEntries, c as getChampionMasteries } from '../../../chunks/endpoints_DHK-CytZ.mjs';
+import { g as getAccountByRiotId, a as getSummonerByPuuid, b as getLeagueEntries, c as getChampionMasteries } from '../../../chunks/endpoints_BQGYynjO.mjs';
 import { b as bootstrap } from '../../../chunks/index_F0teeQqx.mjs';
 import { e as err, o as ok } from '../../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../../renderers.mjs';

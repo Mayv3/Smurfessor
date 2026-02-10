@@ -1,48 +1,65 @@
 /**
  * Riot API HTTP client with:
  * - Concurrency + minTime rate control (ESM-native)
+ * - Two priority lanes: core (search/summoner/league) vs bulk (match history)
  * - 429 Retry-After handling
  * - Exponential backoff with jitter
  * - Timeout via AbortController
  */
 import { RiotApiError, RiotErrorCode } from "./errors";
 
-/* ── Simple ESM-native rate limiter ──────────────────── */
-const MAX_CONCURRENT = 5;
-const MIN_TIME_MS = 100;
-let _running = 0;
-let _lastRun = 0;
-const _queue: Array<() => void> = [];
+/* ── Dual-lane ESM-native rate limiter ───────────────── */
+interface RateLane {
+  maxConcurrent: number;
+  minTimeMs: number;
+  running: number;
+  lastRun: number;
+  queue: Array<() => void>;
+}
 
-function drain() {
-  while (_queue.length > 0 && _running < MAX_CONCURRENT) {
-    const next = _queue.shift()!;
+/** Core lane — search, summoner, league, live-game (high priority) */
+const _core: RateLane = { maxConcurrent: 5, minTimeMs: 100, running: 0, lastRun: 0, queue: [] };
+/** Bulk lane — match IDs + match details (low priority, yields to core) */
+const _bulk: RateLane = { maxConcurrent: 2, minTimeMs: 200, running: 0, lastRun: 0, queue: [] };
+
+/** GLOBAL concurrent cap across both lanes (Riot dev key: 20/s) */
+const GLOBAL_MAX = 8;
+function globalRunning(): number { return _core.running + _bulk.running; }
+
+function drain(lane: RateLane) {
+  while (lane.queue.length > 0 && lane.running < lane.maxConcurrent && globalRunning() < GLOBAL_MAX) {
+    const next = lane.queue.shift()!;
     next();
   }
 }
 
-function schedule<T>(fn: () => Promise<T>): Promise<T> {
+function drainAll() {
+  drain(_core);  // core first
+  drain(_bulk);
+}
+
+function schedule<T>(fn: () => Promise<T>, lane: RateLane): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const run = () => {
       const now = Date.now();
-      const wait = Math.max(0, MIN_TIME_MS - (now - _lastRun));
+      const wait = Math.max(0, lane.minTimeMs - (now - lane.lastRun));
       setTimeout(async () => {
-        _running++;
-        _lastRun = Date.now();
+        lane.running++;
+        lane.lastRun = Date.now();
         try {
           resolve(await fn());
         } catch (e) {
           reject(e);
         } finally {
-          _running--;
-          drain();
+          lane.running--;
+          drainAll();
         }
       }, wait);
     };
-    if (_running < MAX_CONCURRENT) {
+    if (lane.running < lane.maxConcurrent && globalRunning() < GLOBAL_MAX) {
       run();
     } else {
-      _queue.push(run);
+      lane.queue.push(run);
     }
   });
 }
@@ -86,13 +103,16 @@ async function fetchWithTimeout(
 export interface RiotFetchOptions {
   maxRetries?: number;
   timeout?: number;
+  /** "core" for search/summoner/league, "bulk" for match history (default: "core") */
+  priority?: "core" | "bulk";
 }
 
 export async function riotFetch<T>(
   url: string,
   options: RiotFetchOptions = {},
 ): Promise<T> {
-  const { maxRetries = 3, timeout = 10_000 } = options;
+  const { maxRetries = 3, timeout = 10_000, priority = "core" } = options;
+  const lane = priority === "bulk" ? _bulk : _core;
   const apiKey = getApiKey();
 
   if (!apiKey) {
@@ -110,7 +130,7 @@ export async function riotFetch<T>(
     try {
       const res = await schedule(() =>
         fetchWithTimeout(url, apiKey, timeout),
-      );
+      lane);
 
       if (res.ok) {
         return (await res.json()) as T;

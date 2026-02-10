@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { g as getAccountByRiotId, R as RiotApiError } from '../../chunks/endpoints_DHK-CytZ.mjs';
+import { g as getAccountByRiotId, R as RiotApiError } from '../../chunks/endpoints_BQGYynjO.mjs';
 import { e as err, o as ok } from '../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../renderers.mjs';
 

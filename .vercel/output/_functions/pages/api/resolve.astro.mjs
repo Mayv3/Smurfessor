@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { A as ACCOUNTS } from '../../chunks/accounts_BS9-O4eu.mjs';
-import { g as getAccountByRiotId, R as RiotApiError } from '../../chunks/endpoints_DHK-CytZ.mjs';
+import { g as getAccountByRiotId, R as RiotApiError } from '../../chunks/endpoints_BQGYynjO.mjs';
 import { e as MOCK_RESOLVE, f as SMURF_TEST_RESOLVE } from '../../chunks/mock-data_DUIVrbyk.mjs';
 import { e as err, o as ok } from '../../chunks/api-response_BJZTK7sH.mjs';
 export { renderers } from '../../renderers.mjs';
