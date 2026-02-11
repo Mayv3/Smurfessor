@@ -12,17 +12,31 @@ import {
   computeTilted,
 } from "./rules";
 
+/** Suppress an insight — zeroes score/severity so it won't show anywhere */
+function suppress(i: Insight): Insight {
+  return { ...i, severity: "none", score: 0 };
+}
+
+function isVisible(sev: string): boolean {
+  return sev !== "none" && sev !== "low";
+}
+
 /**
  * Compute all insights for a player from their signals.
  * Pure function — no IO, no exceptions.
  */
 export function computeInsights(signals: PlayerSignals): PlayerInsights {
-  const smurf = computeSmurf(signals);
+  let smurf = computeSmurf(signals);
   const otp = computeOtp(signals);
   const eloQuemado = computeEloQuemado(signals);
   const lowWr = computeLowWr(signals);
   const carried = computeCarried(signals);
   const tilted = computeTilted(signals);
+
+  /* ── Mutual-exclusion: escombro/elo-quemado contradicts smurf ── */
+  if (isVisible(lowWr.severity) || isVisible(eloQuemado.severity)) {
+    smurf = suppress(smurf);
+  }
 
   const insights: Insight[] = [smurf, otp, eloQuemado, lowWr, carried, tilted];
 

@@ -20,12 +20,12 @@ interface RateLane {
 }
 
 /** Core lane — search, summoner, league, live-game (high priority) */
-const _core: RateLane = { maxConcurrent: 5, minTimeMs: 100, running: 0, lastRun: 0, queue: [] };
+const _core: RateLane = { maxConcurrent: 6, minTimeMs: 100, running: 0, lastRun: 0, queue: [] };
 /** Bulk lane — match IDs + match details (low priority, yields to core) */
-const _bulk: RateLane = { maxConcurrent: 2, minTimeMs: 200, running: 0, lastRun: 0, queue: [], maxQueueDepth: 40 };
+const _bulk: RateLane = { maxConcurrent: 4, minTimeMs: 150, running: 0, lastRun: 0, queue: [], maxQueueDepth: 150 };
 
 /** GLOBAL concurrent cap across both lanes (Riot dev key: 20/s) */
-const GLOBAL_MAX = 8;
+const GLOBAL_MAX = 12;
 function globalRunning(): number { return _core.running + _bulk.running; }
 
 function drain(lane: RateLane) {

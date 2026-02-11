@@ -138,7 +138,9 @@ async function fetchRunes(version: string): Promise<RunesFetchResult> {
 }
 
 /* ─── Bootstrap (all-in-one for client) ──────────────── */
-export async function bootstrap(): Promise<DDragonBootstrap> {
+
+/** Internal implementation — always does real work. */
+async function _doBootstrap(): Promise<DDragonBootstrap> {
   const version = await getLatestVersion();
   const [champions, spells, runesResult] = await Promise.all([
     getChampions(version),
@@ -147,3 +149,22 @@ export async function bootstrap(): Promise<DDragonBootstrap> {
   ]);
   return { version, champions, spells, runes: runesResult.trees, runeData: runesResult.allRunes };
 }
+
+/**
+ * Promise-dedup: concurrent callers share a single in-flight bootstrap.
+ * Re-created after DEDUP_TTL so DDragon version refreshes eventually.
+ */
+let _bsPending: Promise<DDragonBootstrap> | null = null;
+let _bsTs = 0;
+const BS_DEDUP_TTL = 60 * 60 * 1000; // 1 h
+
+export function bootstrap(): Promise<DDragonBootstrap> {
+  const now = Date.now();
+  if (_bsPending && now - _bsTs < BS_DEDUP_TTL) return _bsPending;
+  _bsPending = _doBootstrap().catch((e) => { _bsPending = null; throw e; });
+  _bsTs = now;
+  return _bsPending;
+}
+
+/* Eagerly start DDragon fetch on module load (pre-warm cold start) */
+bootstrap().catch(() => {});

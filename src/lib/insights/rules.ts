@@ -81,6 +81,12 @@ function scoreSmurfRanked(s: PlayerSignals, T: typeof CFG.SMURF, rGames: number,
       acc.score += T.rankedWrHighPoints;
       acc.reasons.push(`WR ranked muy alto: ${pct(rWr)}% (≥${pct(T.rankedWrHigh)}%)`);
     }
+
+    // Low WR penalty: a real smurf doesn't lose this much
+    if (rWr < T.lowWrPenaltyThreshold) {
+      acc.score -= T.lowWrPenaltyPoints;
+      acc.reasons.push(`WR ranked bajo ${pct(rWr)}% (<${pct(T.lowWrPenaltyThreshold)}%) — descarta smurf`);
+    }
   }
   if (s.ranked?.hotStreak) { acc.score += T.hotStreakPoints; acc.reasons.push("Racha de victorias activa"); }
   if (s.ranked?.freshBlood) { acc.score += T.freshBloodPoints; acc.reasons.push("Cuenta recién rankeada"); }
@@ -180,28 +186,36 @@ export function computeOtp(s: PlayerSignals): Insight {
 
   if (s.recent && s.recent.matches >= T.recentMatchesMin && s.recent.champPool.length > 0) {
     const top1 = s.recent.champPool[0];
-    const share = safeDiv(top1.games, s.recent.matches);
 
-    if (share >= T.topShareBase) {
-      score += T.topShareBasePoints;
-      reasons.push(`${pct(share)}% de partidas recientes con un solo campeón`);
-    }
-    if (share >= T.topShareHigh) {
-      score += T.topShareHighPoints;
-      reasons.push(`Pool muy concentrado: ${pct(share)}% en 1 campeón`);
-    }
+    /* Only flag OTP when the most-played champ IS the one being played now.
+       Otherwise the badge is misleading ("OTP" on a champ they never play). */
+    if (s.currentChampionId != null && top1.championId !== s.currentChampionId) {
+      // not OTPing the current champion — skip pool scoring
+    } else {
+      const share = safeDiv(top1.games, s.recent.matches);
 
-    // WR split
-    if (s.recent.winrate > 0 && top1.winrate - s.recent.winrate >= T.wrSplitDiff) {
-      score += T.wrSplitPoints;
-      reasons.push(`WR con main (${pct(top1.winrate)}%) vs general (${pct(s.recent.winrate)}%): +${pct(top1.winrate - s.recent.winrate)}%`);
+      if (share >= T.topShareBase) {
+        score += T.topShareBasePoints;
+        reasons.push(`${pct(share)}% de partidas recientes con un solo campeón`);
+      }
+      if (share >= T.topShareHigh) {
+        score += T.topShareHighPoints;
+        reasons.push(`Pool muy concentrado: ${pct(share)}% en 1 campeón`);
+      }
+
+      // WR split
+      if (s.recent.winrate > 0 && top1.winrate - s.recent.winrate >= T.wrSplitDiff) {
+        score += T.wrSplitPoints;
+        reasons.push(`WR con main (${pct(top1.winrate)}%) vs general (${pct(s.recent.winrate)}%): +${pct(top1.winrate - s.recent.winrate)}%`);
+      }
     }
   }
 
-  // Mastery gap
+  // Mastery gap — only if top mastery champ matches the current one
   if (s.mastery && s.mastery.top.length >= 2) {
     const [first, second] = s.mastery.top;
-    if (first.points >= second.points * T.masteryGapMultiplier) {
+    const masteryMatchesCurrent = s.currentChampionId == null || first.championId === s.currentChampionId;
+    if (masteryMatchesCurrent && first.points >= second.points * T.masteryGapMultiplier) {
       score += T.masteryGapPoints;
       reasons.push(`Maestría: ${(first.points / 1000).toFixed(0)}k pts en main vs ${(second.points / 1000).toFixed(0)}k en segundo`);
     }

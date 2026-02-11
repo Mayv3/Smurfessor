@@ -87,7 +87,7 @@ const KIND_META: Record<InsightKind, KindMeta> = {
     text: severityText("orange"),
   },
   LOW_WR: {
-    label: "LOW PERFORMANCE",
+    label: "ESCOMBRO",
     icon: LOW_WR_ICO,
     gradient: severityGrad("stone"),
     border: severityBorder("stone"),

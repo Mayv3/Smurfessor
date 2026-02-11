@@ -168,7 +168,7 @@ describe("computeOtp", () => {
    ELO_QUEMADO
    ══════════════════════════════════════════════════════════ */
 describe("computeEloQuemado", () => {
-  it("returns none for low games (<80)", () => {
+  it("returns none for low games (<40)", () => {
     const r = computeEloQuemado(baseSignals({ ranked: rankedEntry(30, 30) }));
     expect(r.severity).toBe("none");
   });

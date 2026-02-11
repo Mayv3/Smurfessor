@@ -17,7 +17,7 @@ import { normalizeRunes } from "../../lib/ddragon/runes";
 import type { NormalizedRunes } from "../../lib/ddragon/runes";
 import { getChampionRecentStats } from "../../lib/riot/match-stats";
 import { computeSmurfAssessment } from "../../lib/smurf/rules";
-import { buildPlayerSignals, buildCheapSignals } from "../../lib/insights/signals";
+import { buildCheapSignals, buildDeepSignals } from "../../lib/insights/signals";
 import { computeInsights } from "../../lib/insights";
 import type { PlayerSignals } from "../../lib/insights/types";
 import { flushBulkQueue } from "../../lib/riot/http";
@@ -153,15 +153,14 @@ export const POST: APIRoute = async ({ request }) => {
 
   const { platform, players } = parsed.data;
 
-  /* ── Bootstrap DDragon ── */
-  let dd: Awaited<ReturnType<typeof bootstrap>> | null = null;
-  try {
-    dd = await bootstrap();
-  } catch (e) {
+  /* ── Bootstrap DDragon — start early, await later ── */
+  const ddPromise = bootstrap().catch((e) => {
     console.warn("[player-cards] DDragon bootstrap failed:", e);
-  }
+    return null;
+  });
 
-  /* ── Check mock modes ── */
+  /* ── Check mock modes (need dd for mock card cosmetics) ── */
+  const dd = await ddPromise;
   const mockResponse = dispatchMock(players, dd);
   if (mockResponse) return mockResponse;
 
@@ -173,8 +172,15 @@ export const POST: APIRoute = async ({ request }) => {
     p: z.infer<typeof playerSchema>,
   ): Promise<PlayerCardData> {
     try {
-      /* 1) Account (riotId) */
-      /* All API calls in parallel — rate limiter handles concurrency */
+      /* ── Fire ALL async work in parallel ── */
+
+      /* Deep insight signals — only needs puuid + championId + platform.
+         Start immediately so match fetching overlaps with core API calls.
+         In-flight dedup in endpoints.ts ensures no duplicate network calls
+         with champStats (they share the same getMatchIds/getMatch). */
+      const deepPromise = buildDeepSignals(p.puuid, p.championId, platform)
+        .catch(() => ({ recent: null, champRecent: null } as const));
+
       /* champStats uses bulk lane + 10s timeout so it doesn't block core data */
       const champStatsPromise = Promise.race([
         getChampionRecentStats(p.puuid, p.championId, platform),
@@ -253,32 +259,29 @@ export const POST: APIRoute = async ({ request }) => {
         championSampleSize: champStats.gamesWithChamp ?? 0,
       });
 
-      /* 7) Insights engine — try full signals with timeout, fallback to cheap */
+      /* 7) Insights engine — deep signals already in-flight since t=0 */
       let insights: import("../../lib/insights/types").PlayerInsights | null = null;
       try {
-        const cheapSignals = buildCheapSignals(
-          summoner.summonerLevel, entries, allMasteries, p.championId,
-        );
-        const cheapFallback: PlayerSignals = {
-          ...cheapSignals,
-          currentRole: "UNKNOWN",
-          recent: null,
-          champRecent: null,
-        } as PlayerSignals;
-
-        /* Race: full signals (deep match data) vs 4s timeout → cheap only */
-        const signals = await Promise.race([
-          buildPlayerSignals(
-            p.puuid, summoner.summonerLevel, entries,
-            allMasteries, p.championId, undefined, platform,
-          ),
-          new Promise<PlayerSignals>((r) =>
+        /* Await deep signals with timeout — falls back to cheap-only */
+        const deep = await Promise.race([
+          deepPromise,
+          new Promise<{ recent: null; champRecent: null }>((r) =>
             setTimeout(() => {
               console.info(`[player-cards] insights deep timeout for ${p.puuid} — using cheap signals`);
-              r(cheapFallback);
+              r({ recent: null, champRecent: null });
             }, INSIGHTS_TIMEOUT),
           ),
         ]);
+
+        const cheapSignals = buildCheapSignals(
+          summoner.summonerLevel, entries, allMasteries, p.championId,
+        );
+        const signals: PlayerSignals = {
+          ...cheapSignals,
+          currentRole: "UNKNOWN" as const,
+          recent: deep.recent,
+          champRecent: deep.champRecent,
+        };
         insights = computeInsights(signals);
       } catch (e) {
         /* Last resort: cheap-only insights */

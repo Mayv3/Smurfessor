@@ -129,6 +129,10 @@ export interface MatchIdsOptions {
   start?: number;       // pagination offset, default 0
 }
 
+/* ── In-flight dedup maps — concurrent callers share the same network request ── */
+const _matchIdsInflight = new Map<string, Promise<string[]>>();
+const _matchInflight = new Map<string, Promise<unknown>>();
+
 export async function getMatchIds(
   puuid: string,
   optionsOrCount?: MatchIdsOptions | number,
@@ -152,20 +156,41 @@ export async function getMatchIds(
   const hit = getCached<string[]>("matchIds", cacheKey, TTL.MATCHES);
   if (hit) return hit;
 
-  const base = regionalUrl(platform);
-  const url = `${base}/lol/match/v5/matches/by-puuid/${puuid}/ids?${params.toString()}`;
-  const data = await riotFetch<string[]>(url, { priority: "bulk" });
-  setCached("matchIds", cacheKey, data, TTL.MATCHES);
-  return data;
+  /* Dedup: reuse in-flight request if one exists for the same key */
+  const existing = _matchIdsInflight.get(cacheKey);
+  if (existing) return existing;
+
+  const p = (async () => {
+    const base = regionalUrl(platform);
+    const url = `${base}/lol/match/v5/matches/by-puuid/${puuid}/ids?${params.toString()}`;
+    const data = await riotFetch<string[]>(url, { priority: "bulk" });
+    setCached("matchIds", cacheKey, data, TTL.MATCHES);
+    return data;
+  })();
+  _matchIdsInflight.set(cacheKey, p);
+  const cleanup = () => { _matchIdsInflight.delete(cacheKey); };
+  p.then(cleanup, cleanup);
+  return p;
 }
 
 export async function getMatch(matchId: string, platform?: string): Promise<unknown> {
   const hit = getCached<unknown>("match", matchId, TTL.MATCH_DETAIL);
   if (hit) return hit;
 
-  const base = regionalUrl(platform);
-  const url = `${base}/lol/match/v5/matches/${matchId}`;
-  const data = await riotFetch<unknown>(url, { priority: "bulk", maxRetries: 1, timeout: 8_000 });
-  setCached("match", matchId, data, TTL.MATCH_DETAIL);
-  return data;
+  /* Dedup: reuse in-flight request if one exists for the same matchId */
+  const key = `${matchId}:${platform ?? ""}`;
+  const existing = _matchInflight.get(key);
+  if (existing) return existing;
+
+  const p = (async () => {
+    const base = regionalUrl(platform);
+    const url = `${base}/lol/match/v5/matches/${matchId}`;
+    const data = await riotFetch<unknown>(url, { priority: "bulk", maxRetries: 1, timeout: 8_000 });
+    setCached("match", matchId, data, TTL.MATCH_DETAIL);
+    return data;
+  })();
+  _matchInflight.set(key, p);
+  const cleanup = () => { _matchInflight.delete(key); };
+  p.then(cleanup, cleanup);
+  return p;
 }

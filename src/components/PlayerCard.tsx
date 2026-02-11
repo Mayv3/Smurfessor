@@ -285,43 +285,52 @@ function LevelBadge({ summonerLevel, loading }: Readonly<{ summonerLevel: number
 }
 
 /** Insight badges — rendered in normal flow (not absolute) to avoid overlaps */
-function InsightBadges({ loading, smurf, hasInsights, visibleInsights, eloQuemado, escombro, ranked, wr }: Readonly<{
+function InsightBadges({ loading, smurf, hasInsights, visibleInsights }: Readonly<{
   loading?: boolean;
   smurf: SmurfAssessment; hasInsights: boolean; visibleInsights: Insight[];
-  eloQuemado: boolean; escombro: boolean;
-  ranked: PlayerCardRanked | null; wr: number | null;
 }>) {
   if (loading) return null;
 
   // Limit to 2 insight chips max
   const maxBadges = 2;
-  const badges = hasInsights ? visibleInsights.slice(0, maxBadges) : [];
+  let badges = hasInsights ? visibleInsights.slice(0, maxBadges) : [];
 
-  // Show legacy badges when insight engine doesn't already cover them
+  // Show legacy smurf badge when insight engine doesn't cover it
   const insightKinds = new Set(badges.map((i) => i.kind));
-  const showLegacySmurf = smurf && smurf.severity !== "none" && !insightKinds.has("SMURF");
-  const showEscombro = escombro && !insightKinds.has("LOW_WR");
-  const showEloQuemado = eloQuemado && !insightKinds.has("ELO_QUEMADO");
+  let showLegacySmurf = smurf && smurf.severity !== "none" && !insightKinds.has("SMURF");
 
-  if (badges.length === 0 && !showLegacySmurf && !showEscombro && !showEloQuemado) return null;
+  /* ── Mutual-exclusion: smurf + escombro can't coexist ── */
+  const escombroInsight = badges.find((i) => i.kind === "LOW_WR" || i.kind === "ELO_QUEMADO");
+  const smurfInsight = badges.find((i) => i.kind === "SMURF");
+
+  if (escombroInsight && smurfInsight) {
+    // Both from insight engine — keep the one with higher score
+    if (smurfInsight.score >= escombroInsight.score) {
+      badges = badges.filter((i) => i.kind !== "LOW_WR" && i.kind !== "ELO_QUEMADO");
+    } else {
+      badges = badges.filter((i) => i.kind !== "SMURF");
+    }
+  } else if (escombroInsight && showLegacySmurf) {
+    // Legacy smurf vs insight escombro — compare probability vs score
+    if (smurf.probability >= escombroInsight.score) {
+      badges = badges.filter((i) => i.kind !== "LOW_WR" && i.kind !== "ELO_QUEMADO");
+    } else {
+      showLegacySmurf = false;
+    }
+  }
+
+  /* Always render a fixed-height container so cards align even when empty */
+  if (badges.length === 0 && !showLegacySmurf) {
+    return <div className="min-h-[22px]" />;
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1 min-h-[22px]">
       {showLegacySmurf && (
         <SmurfBadge severity={smurf.severity} label={smurf.label} probability={smurf.probability} reasons={smurf.reasons} />
       )}
       {badges.length > 0 && (
         <InsightChipList insights={badges} />
-      )}
-      {showEloQuemado && (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-gradient-to-r from-orange-600/70 to-orange-500/60 text-orange-100 border-orange-500/40 shadow-sm" title={`${ranked!.games} rankeds jugadas`}>
-          ELO QUEMADO
-        </span>
-      )}
-      {showEscombro && (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border bg-gradient-to-r from-stone-700/70 to-stone-600/60 text-stone-200 border-stone-500/40 shadow-sm" title={`${wr}% WR en ranked`}>
-          ESCOMBRO
-        </span>
       )}
     </div>
   );
@@ -606,8 +615,6 @@ export function PlayerCard({
         <InsightBadges
           loading={loading} smurf={smurf}
           hasInsights={!!hasInsights} visibleInsights={visibleInsights}
-          eloQuemado={eloQuemado} escombro={escombro}
-          ranked={ranked} wr={wr}
         />
 
         {/* ── Row 2: Rank + Winrate ── */}
@@ -631,9 +638,9 @@ export function PlayerCard({
           </div>
         )}
 
-        {/* ── Row 4: Full runes breakdown ── */}
+        {/* ── Row 4: Full runes breakdown (fixed-height slot for alignment) ── */}
         {!loading && runes && (runes.primaryRunes.length > 0 || runes.secondaryRunes.length > 0) && (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-800/40 border border-gray-700/20 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-800/40 border border-gray-700/20 flex-wrap min-h-[28px]">
             <RuneIcon slot={runes.primaryStyle} size="w-4 h-4" />
             <span className="text-gray-700 text-[10px]">|</span>
             {runes.primaryRunes.map((r) => (

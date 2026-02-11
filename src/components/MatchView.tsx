@@ -144,25 +144,36 @@ interface InsightCounts {
   smurfConfirmed: number;
   smurfProbable: number;
   otp: number;
-  eloQuemado: number;
-  lowWr: number;
+  escombro: number;
   carried: number;
   tilted: number;
 }
 
+/** Severity that counts as visible (must match InsightChipList filter) */
+function isVisible(sev: string): boolean {
+  return sev !== "none" && sev !== "low";
+}
+
 function accumulateInsights(c: InsightCounts, card: PlayerCardDataFromAPI): void {
-  const s = card.insights!.summary;
-  if (s.smurf.confirmed) c.smurfConfirmed++;
-  else if (s.smurf.probable) c.smurfProbable++;
-  if (s.otp.score >= 50) c.otp++;
-  if (s.eloQuemado.score >= 50) c.eloQuemado++;
-  if (s.lowWr.score >= 50) c.lowWr++;
-  if (s.carried.score >= 50) c.carried++;
-  if (s.tilted.score >= 50) c.tilted++;
+  const ins = card.insights!.insights;
+  for (const i of ins) {
+    if (!isVisible(i.severity)) continue;
+    switch (i.kind) {
+      case "SMURF":
+        if (i.severity === "confirmed") c.smurfConfirmed++;
+        else c.smurfProbable++;
+        break;
+      case "OTP": c.otp++; break;
+      case "ELO_QUEMADO": // fall through — unified as "Escombro"
+      case "LOW_WR": c.escombro++; break;
+      case "CARRIED": c.carried++; break;
+      case "TILTED": c.tilted++; break;
+    }
+  }
 }
 
 function countInsights(puuids: string[], map: Map<string, PlayerCardDataFromAPI>): InsightCounts {
-  const c: InsightCounts = { smurfConfirmed: 0, smurfProbable: 0, otp: 0, eloQuemado: 0, lowWr: 0, carried: 0, tilted: 0 };
+  const c: InsightCounts = { smurfConfirmed: 0, smurfProbable: 0, otp: 0, escombro: 0, carried: 0, tilted: 0 };
   for (const id of puuids) {
     const card = map.get(id);
     if (card?.insights) accumulateInsights(c, card);
@@ -175,8 +186,7 @@ const INSIGHT_PILL_DEFS = [
   { key: "smurfConfirmed" as const, label: "Smurf", cls: "text-red-400 font-bold" },
   { key: "smurfProbable" as const, label: "Smurf?", cls: "text-yellow-400 font-semibold" },
   { key: "otp" as const, label: "OTP", cls: "text-amber-400 font-semibold" },
-  { key: "eloQuemado" as const, label: "Quemado", cls: "text-orange-400 font-semibold" },
-  { key: "lowWr" as const, label: "Low WR", cls: "text-stone-400 font-semibold" },
+  { key: "escombro" as const, label: "Escombro", cls: "text-stone-400 font-semibold" },
   { key: "carried" as const, label: "Carried", cls: "text-purple-400 font-semibold" },
   { key: "tilted" as const, label: "Tilted", cls: "text-rose-400 font-semibold" },
 ];
@@ -517,8 +527,8 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Readonly<Props>) 
   const blueInsights = countInsights(game.teams.blue.map((p) => p.puuid).filter((id): id is string => !!id), cards);
   const redInsights = countInsights(game.teams.red.map((p) => p.puuid).filter((id): id is string => !!id), cards);
   const hasAnyInsight = !loading && (
-    blueInsights.smurfConfirmed + blueInsights.smurfProbable + blueInsights.otp + blueInsights.eloQuemado + blueInsights.lowWr + blueInsights.carried + blueInsights.tilted +
-    redInsights.smurfConfirmed + redInsights.smurfProbable + redInsights.otp + redInsights.eloQuemado + redInsights.lowWr + redInsights.carried + redInsights.tilted
+    blueInsights.smurfConfirmed + blueInsights.smurfProbable + blueInsights.otp + blueInsights.escombro + blueInsights.carried + blueInsights.tilted +
+    redInsights.smurfConfirmed + redInsights.smurfProbable + redInsights.otp + redInsights.escombro + redInsights.carried + redInsights.tilted
   ) > 0;
 
   return (

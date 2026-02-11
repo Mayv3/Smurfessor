@@ -35,12 +35,15 @@ export interface ChampionRecentStats {
 const WINDOW_SECONDS = 7 * 24 * 60 * 60;
 /** Max IDs per Match-V5 page */
 const PAGE_SIZE = 100;
-/** Absolute cap — don't fetch more than 10 match details per player */
-const MAX_MATCH_DETAILS = 10;
 /** Round startTime to 15-min blocks so match-stats & signals share cache keys */
 const START_BUCKET = 900;
-/** Stop fetching once we find this many games with the target champion */
-const EARLY_STOP_CHAMP_GAMES = 5;
+/**
+ * Max match details to fetch for champion counting.
+ * Higher than signals' 10 so we get the real champion game count,
+ * but capped to avoid overwhelming the rate limiter.
+ * The first 10 are usually cached from signals.ts (free).
+ */
+const MAX_CHAMP_DETAILS = 30;
 /** Minimum games with champion to consider the sample reliable */
 const MIN_SAMPLE_SIZE = 3;
 
@@ -82,14 +85,16 @@ function emptyStats(
   };
 }
 
-/** Batch-fetch match details and count champion games with early-stop. */
+/** Batch-fetch match details and count champion games.
+ *  Phase 1: scan cached matches (free, instant).
+ *  Phase 2: fetch uncached matches in small batches to avoid queue overflow.
+ */
 async function countChampGames(
   puuid: string,
   championId: number,
   matchIds: string[],
   platform?: string,
 ): Promise<{ gamesWithChamp: number; wins: number; kills: number; deaths: number; assists: number; detailsFetched: number }> {
-  const BATCH_SIZE = 3;
   let gamesWithChamp = 0;
   let wins = 0;
   let kills = 0;
@@ -97,10 +102,30 @@ async function countChampGames(
   let assists = 0;
   let detailsFetched = 0;
 
-  for (let i = 0; i < matchIds.length; i += BATCH_SIZE) {
-    if (gamesWithChamp >= EARLY_STOP_CHAMP_GAMES) break;
+  const uncachedIds: string[] = [];
 
-    const batch = matchIds.slice(i, i + BATCH_SIZE);
+  /* Phase 1 — count from cache (matches already fetched by signals.ts) */
+  for (const id of matchIds) {
+    const cached = getCached<{ info?: { participants?: Array<{ puuid: string; championId: number; win: boolean; kills: number; deaths: number; assists: number }> } }>("match", id, TTL.MATCH_DETAIL);
+    if (cached) {
+      detailsFetched++;
+      const p = cached.info?.participants?.find((x) => x.puuid === puuid && x.championId === championId);
+      if (p) {
+        gamesWithChamp++;
+        if (p.win) wins++;
+        kills += p.kills ?? 0;
+        deaths += p.deaths ?? 0;
+        assists += p.assists ?? 0;
+      }
+    } else {
+      uncachedIds.push(id);
+    }
+  }
+
+  /* Phase 2 — fetch uncached in small batches (gentle on rate limiter) */
+  const BATCH = 2;
+  for (let i = 0; i < uncachedIds.length; i += BATCH) {
+    const batch = uncachedIds.slice(i, i + BATCH);
     const settled = await Promise.allSettled(
       batch.map((id) => getMatch(id, platform)),
     );
@@ -157,7 +182,9 @@ export async function getChampionRecentStats(
       return result;
     }
 
-    const matchIds = allMatchIds.slice(0, MAX_MATCH_DETAILS);
+    // Fetch details for up to MAX_CHAMP_DETAILS matches to get a real champion count.
+    // getMatch() results are cached, so the first ~10 (fetched by signals.ts) are free.
+    const matchIds = allMatchIds.slice(0, MAX_CHAMP_DETAILS);
     const { gamesWithChamp, wins, kills, deaths, assists } = await countChampGames(puuid, championId, matchIds, platform);
     const losses = gamesWithChamp - wins;
     const sampleSizeOk = gamesWithChamp >= MIN_SAMPLE_SIZE;
