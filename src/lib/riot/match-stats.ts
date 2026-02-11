@@ -39,11 +39,10 @@ const PAGE_SIZE = 100;
 const START_BUCKET = 900;
 /**
  * Max match details to fetch for champion counting.
- * Higher than signals' 10 so we get the real champion game count,
- * but capped to avoid overwhelming the rate limiter.
- * The first 10 are usually cached from signals.ts (free).
+ * Matches signals' MAX_MATCH_DETAILS so every detail is already
+ * cached or in-flight-deduped — adds zero extra API calls.
  */
-const MAX_CHAMP_DETAILS = 30;
+const MAX_CHAMP_DETAILS = 10;
 /** Minimum games with champion to consider the sample reliable */
 const MIN_SAMPLE_SIZE = 3;
 

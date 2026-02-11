@@ -15,8 +15,8 @@ import {
 import { bootstrap } from "../../lib/ddragon/index";
 import { normalizeRunes } from "../../lib/ddragon/runes";
 import type { NormalizedRunes } from "../../lib/ddragon/runes";
-import { getChampionRecentStats } from "../../lib/riot/match-stats";
 import { computeSmurfAssessment } from "../../lib/smurf/rules";
+import { getChampionRecentStats } from "../../lib/riot/match-stats";
 import { buildCheapSignals, buildDeepSignals } from "../../lib/insights/signals";
 import { computeInsights } from "../../lib/insights";
 import type { PlayerSignals } from "../../lib/insights/types";
@@ -181,10 +181,13 @@ export const POST: APIRoute = async ({ request }) => {
       const deepPromise = buildDeepSignals(p.puuid, p.championId, platform)
         .catch(() => ({ recent: null, champRecent: null } as const));
 
-      /* champStats uses bulk lane + 10s timeout so it doesn't block core data */
+      /* champStats uses bulk lane + 15s timeout so it doesn't block core data */
       const champStatsPromise = Promise.race([
         getChampionRecentStats(p.puuid, p.championId, platform),
-        new Promise<null>((r) => setTimeout(() => r(null), 10_000)),
+        new Promise<null>((r) => setTimeout(() => {
+          console.warn(`[player-cards] champStats timeout for ${p.puuid.slice(0, 12)}…`);
+          r(null);
+        }, 15_000)),
       ]).catch(() => null);
 
       const masteryPromise = getChampionMasteries(p.puuid, platform).catch(() => null);

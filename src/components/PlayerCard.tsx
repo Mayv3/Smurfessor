@@ -496,12 +496,12 @@ function RunesPreview({ runes, participant, ddragon }: Readonly<{
 }
 
 /* ── Champ-stats inline preview ──────────────────────── */
-function ChampStatsPreview({ champWR, champGames, champStats, mastery }: Readonly<{
+function ChampStatsPreview({ champWR, champGames, champStats }: Readonly<{
   champWR: number | null;
   champGames: number;
   champStats: PlayerCardChampStats;
-  mastery: PlayerCardMastery | null;
 }>) {
+  /* Case 1: Has games with this champion — show full stats */
   if (champWR !== null && champGames > 0) {
     const { kdaWithChamp, avgKills, avgDeaths, avgAssists } = champStats;
     const hasKda = kdaWithChamp != null && avgKills != null && avgDeaths != null && avgAssists != null;
@@ -524,9 +524,15 @@ function ChampStatsPreview({ champWR, champGames, champStats, mastery }: Readonl
       </>
     );
   }
+  /* Case 2: Feature disabled */
   if (champStats.note === "FEATURE_DISABLED") {
     return <span className="text-[10px] text-gray-600">Champ WR: —</span>;
   }
+  /* Case 3: Fetch error — signal it clearly */
+  if (champStats.note === "FETCH_ERROR") {
+    return <span className="text-[10px] text-yellow-600">⚠ Error cargando datos</span>;
+  }
+  /* Case 4: Has ranked games but none with this champ */
   if (champStats.totalRankedGames > 0) {
     return (
       <span className="text-[10px] text-gray-600">
@@ -534,14 +540,8 @@ function ChampStatsPreview({ champWR, champGames, champStats, mastery }: Readonl
       </span>
     );
   }
-  if (!mastery) {
-    return (
-      <span className="text-[10px] text-gray-600">
-        {champStats.note === "NO_CHAMP_GAMES" ? "Sin ranked (7d)" : "Champ WR: —"}
-      </span>
-    );
-  }
-  return <span className="text-[10px] text-gray-600">Sin ranked recientes (7d)</span>;
+  /* Case 5: No ranked games at all in the window */
+  return <span className="text-[10px] text-gray-600">Sin ranked (7d)</span>;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -634,7 +634,7 @@ export function PlayerCard({
               <img src={champIcon(ddragon.version, currentChampion.icon || champ.image)} alt={currentChampion.name || champ.name} className="w-5 h-5 rounded" loading="lazy" />
             )}
 
-            <ChampStatsPreview champWR={champWR} champGames={champGames} champStats={champStats} mastery={mastery} />
+            <ChampStatsPreview champWR={champWR} champGames={champGames} champStats={champStats} />
           </div>
         )}
 
