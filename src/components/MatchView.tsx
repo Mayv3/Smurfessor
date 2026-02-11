@@ -1,9 +1,8 @@
 import { useEffect, useState, useReducer, useRef, useCallback } from "react";
 import { PlayerCard } from "./PlayerCard";
-import { IconShield, IconWarning, IconCheckCircle } from "./ui/Icons";
+import { IconCheckCircle } from "./ui/Icons";
 import { assignRoles } from "../lib/roles/assign";
 import type { Role, RoledParticipant } from "../lib/roles/assign";
-import type { SmurfAssessment } from "../lib/smurf/rules";
 import type { NormalizedRunes } from "../lib/ddragon/runes";
 import type { PlayerInsights } from "../lib/insights/types";
 
@@ -62,7 +61,6 @@ interface PlayerCardDataFromAPI {
   mastery: { championLevel: number; championPoints: number } | null;
   runes: NormalizedRunes | null;
   spells: { spell1: { id: number; name: string; icon: string }; spell2: { id: number; name: string; icon: string } } | null;
-  smurf: SmurfAssessment;
   insights: PlayerInsights | null;
 }
 
@@ -77,8 +75,6 @@ interface Props {
   platform?: string;
 }
 
-/* ── Smurf counter ───────────────────────────────────── */
-interface SmurfCount { confirmed: number; possible: number; }
 
 /* ── Official LoL role icons (CommunityDragon champ-select SVGs) ── */
 const ROLE_META: Record<Role, { label: string; short: string }> = {
@@ -128,16 +124,6 @@ function RoleIcon({ role, size = 20 }: Readonly<{ role: Role; size?: number }>) 
   }
 }
 
-function countSmurfs(puuids: string[], map: Map<string, PlayerCardDataFromAPI>): SmurfCount {
-  let confirmed = 0, possible = 0;
-  for (const id of puuids) {
-    const s = map.get(id);
-    if (!s) continue;
-    if (s.smurf.severity === "confirmed") confirmed++;
-    else if (s.smurf.severity === "possible") possible++;
-  }
-  return { confirmed, possible };
-}
 
 /* ── Insight counters per team ───────────────────────── */
 interface InsightCounts {
@@ -200,30 +186,11 @@ function CleanPills() {
   );
 }
 
-function TeamInsightPills({ counts, fallback }: Readonly<{ counts: InsightCounts; fallback: SmurfCount }>) {
+function TeamInsightPills({ counts }: Readonly<{ counts: InsightCounts }>) {
   const pills = INSIGHT_PILL_DEFS.filter((d) => counts[d.key] > 0);
 
   if (pills.length > 0) {
     return <>{pills.map((p) => <span key={p.label} className={`text-sm ${p.cls}`}>{counts[p.key]} {p.label}</span>)}</>;
-  }
-
-  if (fallback.confirmed > 0 || fallback.possible > 0) {
-    return (
-      <>
-        {fallback.confirmed > 0 && (
-          <span className="flex items-center gap-1.5 text-sm font-bold text-red-400">
-            <IconShield className="w-4 h-4" />
-            {fallback.confirmed} smurf{fallback.confirmed > 1 ? 's' : ''}
-          </span>
-        )}
-        {fallback.possible > 0 && (
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-yellow-400">
-            <IconWarning className="w-4 h-4" />
-            {fallback.possible} posible{fallback.possible > 1 ? 's' : ''}
-          </span>
-        )}
-      </>
-    );
   }
 
   return <CleanPills />;
@@ -412,7 +379,6 @@ function TeamSection({
                 mastery={card?.mastery ?? null}
                 runes={card?.runes ?? null}
                 spells={card?.spells ?? null}
-                smurf={card?.smurf ?? { severity: "none" as const, label: "No smurf", probability: 0, reasons: [] }}
                 insights={card?.insights ?? null}
                 participant={{
                   championId: p.championId,
@@ -434,10 +400,9 @@ function TeamSection({
 }
 
 /* ── Match Alerts (extracted to avoid nested ternary) ── */
-function MatchAlerts({ hasAlerts, blueInsights, redInsights, blueCount, redCount }: Readonly<{
+function MatchAlerts({ hasAlerts, blueInsights, redInsights }: Readonly<{
   hasAlerts: boolean;
   blueInsights: InsightCounts; redInsights: InsightCounts;
-  blueCount: SmurfCount; redCount: SmurfCount;
 }>) {
   if (!hasAlerts) {
     return (
@@ -451,11 +416,11 @@ function MatchAlerts({ hasAlerts, blueInsights, redInsights, blueCount, redCount
     <>
       <div data-testid="blue-smurf-counter" className="flex flex-wrap items-center gap-3 px-5 py-3 rounded-xl bg-blue-950/20 border border-blue-500/15 shadow-lg shadow-blue-500/5">
         <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Azul</span>
-        <TeamInsightPills counts={blueInsights} fallback={blueCount} />
+        <TeamInsightPills counts={blueInsights} />
       </div>
       <div data-testid="red-smurf-counter" className="flex flex-wrap items-center gap-3 px-5 py-3 rounded-xl bg-red-950/20 border border-red-500/15 shadow-lg shadow-red-500/5">
         <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Rojo</span>
-        <TeamInsightPills counts={redInsights} fallback={redCount} />
+        <TeamInsightPills counts={redInsights} />
       </div>
     </>
   );
@@ -518,11 +483,6 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Readonly<Props>) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game.gameId, platform]);
 
-  const blueCount = countSmurfs(game.teams.blue.map((p) => p.puuid).filter((id): id is string => !!id), cards);
-  const redCount = countSmurfs(game.teams.red.map((p) => p.puuid).filter((id): id is string => !!id), cards);
-  const totalConfirmed = blueCount.confirmed + redCount.confirmed;
-  const totalPossible = blueCount.possible + redCount.possible;
-
   /* Insight-based counters */
   const blueInsights = countInsights(game.teams.blue.map((p) => p.puuid).filter((id): id is string => !!id), cards);
   const redInsights = countInsights(game.teams.red.map((p) => p.puuid).filter((id): id is string => !!id), cards);
@@ -546,9 +506,8 @@ export function MatchView({ game, ddragon, platform = "LA2" }: Readonly<Props>) 
                 </div>
               ) : (
                 <MatchAlerts
-                  hasAlerts={totalConfirmed > 0 || totalPossible > 0 || hasAnyInsight}
+                  hasAlerts={hasAnyInsight}
                   blueInsights={blueInsights} redInsights={redInsights}
-                  blueCount={blueCount} redCount={redCount}
                 />
               )}
             </div>

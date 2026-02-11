@@ -1,7 +1,5 @@
-import { SmurfBadge } from "./ui/SmurfBadge";
 import { InsightChipList } from "./ui/InsightChip";
 import { IconPerson } from "./ui/Icons";
-import type { SmurfAssessment } from "../lib/smurf/rules";
 import type { PlayerInsights, Insight } from "../lib/insights/types";
 import type { NormalizedRunes, NormalizedRuneSlot } from "../lib/ddragon/runes";
 
@@ -64,7 +62,6 @@ export interface PlayerCardProps {
   mastery: PlayerCardMastery | null;
   runes: NormalizedRunes | null;
   spells: { spell1: PlayerCardSpell; spell2: PlayerCardSpell } | null;
-  smurf: SmurfAssessment;
   insights?: PlayerInsights | null;
   participant: {
     championId: number;
@@ -168,17 +165,17 @@ function formatPoints(pts: number): string {
   return String(pts);
 }
 
-/* ── Smurf visual helpers ─────────────────────────────── */
-function smurfCardClass(smurf?: SmurfAssessment, tier?: string): string {
-  if (smurf?.severity === "confirmed") return "border-red-500/50 card-smurf";
-  if (smurf?.severity === "possible") return "border-yellow-500/40 card-possible-smurf";
+/* ── Smurf visual helpers (insight-driven) ────────────── */
+function smurfCardClass(smurfSeverity: "confirmed" | "high" | "medium" | "low" | "none", tier?: string): string {
+  if (smurfSeverity === "confirmed" || smurfSeverity === "high") return "border-red-500/50 card-smurf";
+  if (smurfSeverity === "medium") return "border-yellow-500/40 card-possible-smurf";
   if (tier) return TIER_BORDER[tier] ?? "border-gray-700/40";
   return "border-gray-700/40";
 }
 
-function cardTypeClass(smurf?: SmurfAssessment, ranked?: PlayerCardRanked | null): string {
+function cardTypeClass(smurfSeverity: string, ranked?: PlayerCardRanked | null): string {
   const parts: string[] = [];
-  if (ranked && !smurf?.severity || smurf?.severity === "none") {
+  if (smurfSeverity === "none" || smurfSeverity === "low") {
     if (isEscombro(ranked ?? null)) parts.push("card-escombro");
     if (isEloQuemado(ranked ?? null)) parts.push("card-elo-quemado");
   }
@@ -285,9 +282,9 @@ function LevelBadge({ summonerLevel, loading }: Readonly<{ summonerLevel: number
 }
 
 /** Insight badges — rendered in normal flow (not absolute) to avoid overlaps */
-function InsightBadges({ loading, smurf, hasInsights, visibleInsights }: Readonly<{
+function InsightBadges({ loading, hasInsights, visibleInsights }: Readonly<{
   loading?: boolean;
-  smurf: SmurfAssessment; hasInsights: boolean; visibleInsights: Insight[];
+  hasInsights: boolean; visibleInsights: Insight[];
 }>) {
   if (loading) return null;
 
@@ -295,43 +292,27 @@ function InsightBadges({ loading, smurf, hasInsights, visibleInsights }: Readonl
   const maxBadges = 2;
   let badges = hasInsights ? visibleInsights.slice(0, maxBadges) : [];
 
-  // Show legacy smurf badge when insight engine doesn't cover it
-  const insightKinds = new Set(badges.map((i) => i.kind));
-  let showLegacySmurf = smurf && smurf.severity !== "none" && !insightKinds.has("SMURF");
-
   /* ── Mutual-exclusion: smurf + escombro can't coexist ── */
   const escombroInsight = badges.find((i) => i.kind === "LOW_WR" || i.kind === "ELO_QUEMADO");
   const smurfInsight = badges.find((i) => i.kind === "SMURF");
 
   if (escombroInsight && smurfInsight) {
-    // Both from insight engine — keep the one with higher score
+    // Keep the one with higher score
     if (smurfInsight.score >= escombroInsight.score) {
       badges = badges.filter((i) => i.kind !== "LOW_WR" && i.kind !== "ELO_QUEMADO");
     } else {
       badges = badges.filter((i) => i.kind !== "SMURF");
     }
-  } else if (escombroInsight && showLegacySmurf) {
-    // Legacy smurf vs insight escombro — compare probability vs score
-    if (smurf.probability >= escombroInsight.score) {
-      badges = badges.filter((i) => i.kind !== "LOW_WR" && i.kind !== "ELO_QUEMADO");
-    } else {
-      showLegacySmurf = false;
-    }
   }
 
   /* Always render a fixed-height container so cards align even when empty */
-  if (badges.length === 0 && !showLegacySmurf) {
+  if (badges.length === 0) {
     return <div className="min-h-[22px]" />;
   }
 
   return (
     <div className="flex flex-wrap items-center gap-1 min-h-[22px]">
-      {showLegacySmurf && (
-        <SmurfBadge severity={smurf.severity} label={smurf.label} probability={smurf.probability} reasons={smurf.reasons} />
-      )}
-      {badges.length > 0 && (
-        <InsightChipList insights={badges} />
-      )}
+      <InsightChipList insights={badges} />
     </div>
   );
 }
@@ -555,7 +536,6 @@ export function PlayerCard({
   champStats,
   mastery,
   runes,
-  smurf,
   insights,
   participant,
   ddragon,
@@ -572,24 +552,27 @@ export function PlayerCard({
   const eloQuemado = !loading && isEloQuemado(ranked);
   const escombro = !loading && isEscombro(ranked);
 
-  /* Insight-driven overrides (if insights engine produced results) */
+  /* Insight-driven overrides */
   const hasInsights = !loading && insights && insights.insights.length > 0;
   const visibleInsights = hasInsights
     ? (insights?.insights ?? []).filter((i: Insight) => i.severity !== "none" && i.severity !== "low")
     : [];
 
+  /* Derive smurf state from insight engine */
+  const smurfInsight = visibleInsights.find((i) => i.kind === "SMURF");
+  const smurfSeverity = smurfInsight?.severity ?? "none";
+  const isSmurf = smurfSeverity === "confirmed" || smurfSeverity === "high";
+  const isPossibleSmurf = smurfSeverity === "medium";
+
   const tier = ranked?.tier;
   const gradient = tier ? TIER_GRADIENT[tier] ?? "from-transparent to-transparent" : "from-transparent to-transparent";
-  const glowCls = !loading && tier && smurf?.severity === "none" ? tierGlowClass(tier) : "";
-  const typeCls = loading ? "" : cardTypeClass(smurf, ranked);
-  const isSmurf = smurf?.severity === "confirmed";
-  const isPossibleSmurf = smurf?.severity === "possible";
-
+  const glowCls = !loading && tier && !isSmurf && !isPossibleSmurf ? tierGlowClass(tier) : "";
+  const typeCls = loading ? "" : cardTypeClass(smurfSeverity, ranked);
 
   return (
     <div
-      className={`relative rounded-xl border overflow-hidden bg-gray-900/90 backdrop-blur-sm flex flex-col w-full min-h-[280px] transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/30 group ${smurfCardClass(smurf, tier)} ${glowCls} ${typeCls}`}
-      data-smurf-severity={smurf?.severity ?? "none"}
+      className={`relative rounded-xl border overflow-hidden bg-gray-900/90 backdrop-blur-sm flex flex-col w-full min-h-[280px] transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-black/30 group ${smurfCardClass(smurfSeverity, tier)} ${glowCls} ${typeCls}`}
+      data-smurf-severity={smurfSeverity}
       data-testid="player-card"
     >
       {/* ── Tier gradient accent top ── */}
@@ -613,7 +596,7 @@ export function PlayerCard({
 
         {/* ── Row 1b: Insight badges (in flow, below name) ── */}
         <InsightBadges
-          loading={loading} smurf={smurf}
+          loading={loading}
           hasInsights={!!hasInsights} visibleInsights={visibleInsights}
         />
 
